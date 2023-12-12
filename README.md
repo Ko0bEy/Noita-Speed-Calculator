@@ -27,13 +27,9 @@ Search very deep, give very little weight to easiness, but restrict to only some
 
 `speed_calc.exe 536870912 -b accurate -m verydeep -w 0.01 -coefs 0.32 0.75 1.68 2.0`
 
-### Installation
+### Manual Setup
 - Install python.
 - Clone this repository, or download the code as a zip file, and extract it.
 - Open a console and navigate to the code directory
 - Install the dependencies:`pip install -r requirements.txt`
-  - numpy, for faster caluclations
-  - tqdm, for a progress bar
-
-From the console, navigate to the code location and run a command as shown below.
 
