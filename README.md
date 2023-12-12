@@ -9,14 +9,14 @@ Finds Combinations of modifiers to use for Speed Based Long Distance Travel.
 
 
 #### New Game PW Travel 
-Standard settings
+Standard settings, shallow search depth
 
 `speed_calc.exe 35840`
 
 #### New Game Plus PW Travel
-Favor Budget Builds, shallower search
+Favor Budget Builds, normal search depth
 
-`speed_calc.exe 32760 -b budget -m shallow`
+`speed_calc.exe 32760 -b budget -m normal`
 #### Minimum Terrain duping distance
 Favor more accurate solutions and search deeper:
 
