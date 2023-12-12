@@ -1,14 +1,9 @@
 # Noita-Speed-Calculator
 Finds Combinations of modifiers to use for Speed Based Long Distance Travel.
 
-Requires Pyhton 3.10+.
-
-Some basic Knowledge about Python is recommended, but not required.
-
 ### Standalone Version
-- extract the zip
-- open a console and navigate to the folder
-- use `venv\scripts\python` instead of `python` for usage
+- open a console and navigate to the folder of the .exe, then run one of the commands below
+
 
 ### Example Usage:
 
