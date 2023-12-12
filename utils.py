@@ -18,6 +18,17 @@ decreaser_candidates = set()
 extended_coefs = []
 extension_idx = 0
 
+modifier_names = {0.3: "HeavyS",
+                  0.32: "Accel",
+                  0.33: "Phasing",
+                  0.5: "GNuke",
+                  0.75: "ExploP",
+                  1.1: "SlimeB",
+                  1.68: "Decel",
+                  2.0: "Chaotic",
+                  2.5: "Speed+",
+                  7.5: "LightS"}
+
 # call this once to set up the right values for the utility functions
 def set_globals(_coefs: tuple[float], special_coefs: tuple[float] = (1.2,)) -> None:
     """
@@ -174,7 +185,12 @@ def to_equation(sol: tuple[int,tuple[int]], distance:int, target:float, budget_w
     return message
 
 
-def print_headline():
+def print_headline(spacing=12):
+    message = ""
+    for c in coefs:
+        message += modifier_names[c]
+        message += " " * (spacing - len(message))
+    print(message)
     print(
         "HeavyS     Accel      Phasing    ExploP     Decel      Chaotic    Speed+     LightS     FlyUp\t\tSpeedMul\t\tError\t\t\t%-Error\t\t\tDifficulty\tAccuracy\tQuality (lower=better)"
     )

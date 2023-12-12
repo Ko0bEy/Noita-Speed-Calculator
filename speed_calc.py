@@ -1,4 +1,3 @@
-import numpy as np
 from argparse import ArgumentParser
 from collections import defaultdict
 from tqdm import tqdm
@@ -18,7 +17,6 @@ from utils import (
 
 
 def initialize(args):
-#    n_processes = args.p
     strategy = args.s
     coefs = tuple(float(coef) for coef in args.coefs)
     specials_idx, extended_coefs = extend_coefs(coefs)
@@ -39,7 +37,7 @@ def initialize(args):
         max_iter = args.iter
 
     budget = args.b
-    max_rel_err = np.inf
+    max_rel_err = None
 
     if budget == "budget":
         budget_weight = 2.0
