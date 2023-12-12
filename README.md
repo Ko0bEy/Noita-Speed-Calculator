@@ -1,6 +1,6 @@
 # Noita-Speed-Calculator
 Finds Combinations of modifiers to use for Speed Based Long Distance Travel.
-
+\n
 Example Usage:
 Standard settings:
 python -u speed_calc.py 35840
