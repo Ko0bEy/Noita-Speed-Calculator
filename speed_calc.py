@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from collections import defaultdict
 from tqdm import tqdm
-import multiprocessing
+import numpy as np
 
 from utils import (
     get_starting_nodes,
@@ -117,7 +117,7 @@ def _search(
 
     # extension_start_idx, extended_coefs = extend_coefs(coefs)
     min_flyups, fly_up_multipliers = calculate_fly_up_multipliers(target)
-    pool = multiprocessing.Pool(processes=n_processes)
+    # pool = multiprocessing.Pool(processes=n_processes)
     candidate_chooser = None
     if strategy == "complete":
         candidate_chooser = choose_increase_decrease
@@ -153,7 +153,7 @@ def find_solutions(*args):
 def main():
     global coefs
     parser = ArgumentParser()
-    parser.add_argument("distance", default=35840, type=int)
+    parser.add_argument("distance", default=35840, type=np.float64)
     parser.add_argument(
         "-mode",
         "--m",
@@ -170,8 +170,8 @@ def main():
         type=str,
         choices=["accurate", "normal", "budget", "ignorebudget"],
     )
-    parser.add_argument("-distance_min", "--min", type=int)
-    parser.add_argument("-distance_max", "--max", type=int)
+    parser.add_argument("-distance_min", "--min", type=np.float64)
+    parser.add_argument("-distance_max", "--max", type=np.float64)
     parser.add_argument("-v0", "--v0", default=7.92, type=float)
     parser.add_argument("-err", "--e", type=float, default=0.035)
     parser.add_argument("-weight", "--w", type=float)
@@ -184,6 +184,7 @@ def main():
     parser.add_argument("-iter_max", "--iter", type=int)
 
     args = parser.parse_args()
+    print(args)
 
     (
         distance,
