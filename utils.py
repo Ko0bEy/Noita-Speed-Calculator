@@ -24,7 +24,9 @@ modifier_names = {0.3: "HeavyS",
                   0.5: "GNuke",
                   0.75: "ExploP",
                   1.1: "SlimeB",
+                  1.2: "FlyUp",
                   1.68: "Decel",
+                  1.75: "FasterP",
                   2.0: "Chaotic",
                   2.5: "Speed+",
                   7.5: "LightS"}
@@ -147,7 +149,7 @@ def path_cost(value: float, path: tuple[int], target: float, budget_weight:float
     return diff - err
 
 
-def with_sign(s: float) -> str:
+def with_sign(s: [float, np.array]) -> str:
     """
     adds a plus sign to positive values
     :param s: value
@@ -180,19 +182,19 @@ def to_equation(sol: tuple[int,tuple[int]], distance:int, target:float, budget_w
             message += " " * 9 + "* "
     message = (
         message[:-2]
-        + f"=\t{np.round(sol[0], 5)}\t({with_sign(int(get_distance(sol[0]) - distance))}px) \t({with_sign(100 * rel_error(sol[0], target))}%)\t({difficulty(sol[1], budget_weight, specials_idx)})\t\t({error_bonus(sol[0],target)})\t\t({path_cost(*sol, target, budget_weight, specials_idx):.2f})"
+        + f"=\t{np.round(sol[0], 5)}\t({with_sign(int(get_distance(sol[0]) - distance))}px) \t({with_sign(np.round(100 * rel_error(sol[0], target), 7))}%)\t({difficulty(sol[1], budget_weight, specials_idx)})\t\t({error_bonus(sol[0],target)})\t\t({path_cost(*sol, target, budget_weight, specials_idx):.2f})"
     )
     return message
 
 
-def print_headline(spacing=12):
+def print_headline(spacing=11):
     message = ""
-    for c in coefs:
-        message += modifier_names[c]
-        message += " " * (spacing - len(message))
-    print(message)
+    for c in extended_coefs:
+        sub_message = modifier_names[c]
+        message += sub_message + " " * (spacing - len(sub_message))
+
     print(
-        "HeavyS     Accel      Phasing    ExploP     Decel      Chaotic    Speed+     LightS     FlyUp\t\tSpeedMul\t\tError\t\t\t%-Error\t\t\tDifficulty\tAccuracy\tQuality (lower=better)"
+        message + "\tSpeedMul\tError\t\t%-Error\t\tDifficulty\tAccuracy"
     )
 
 
