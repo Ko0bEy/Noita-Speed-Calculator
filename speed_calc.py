@@ -18,9 +18,10 @@ from utils import (
 
 def initialize(args):
     strategy = args.s
-    coefs = tuple(float(coef) for coef in args.coefs)
-    specials_idx, extended_coefs = extend_coefs(coefs)
-    set_globals(coefs)
+    coefs = tuple(sorted(float(coef) for coef in args.coefs))
+    uncapped_coef = args.u
+    specials_idx, extended_coefs = extend_coefs(coefs, uncapped_coef)
+    set_globals(coefs, uncapped_coef)
     # Search parameters
     max_iter, budget_weight = 0, 0
     mode = args.m
@@ -90,7 +91,7 @@ def initialize(args):
         extended_coefs,
     )
 
-#@profile
+
 def _search(
     target,
     target_min,
@@ -98,26 +99,21 @@ def _search(
     coefs=(0.3, 0.32, 0.33, 0.75, 1.68, 2, 2.5, 7.5),
     max_iter=10,
     strategy="complete",
-    n_processes=1,
 ):
-    #@profile
-    #@functools.cache
-    def _step(node, path):
-        candidates = candidate_chooser(node, target)
+    def _step(_node: float, _path: tuple[int]):
+        candidates = candidate_chooser(_node, target)
         new_solutions = set()
         for a, c in candidates:
-            new_path = list(path)
-            new_path[coefs.index(c)] += a
-            #new_solution = (node * c**a, tuple(new_path))
-            new_solution = (get_multiplier(new_path), tuple(new_path))
+            _new_path = list(_path)
+            _new_path[coefs.index(c)] += a
+            # new_solution = (node * c**a, tuple(new_path))
+            new_solution = (get_multiplier(_new_path), tuple(_new_path))
             new_solutions.add(
                 (new_solution, check_solution(new_solution[0], target_min, target_max))
             )
         return new_solutions
 
-    # extension_start_idx, extended_coefs = extend_coefs(coefs)
     min_flyups, fly_up_multipliers = calculate_fly_up_multipliers(target)
-    # pool = multiprocessing.Pool(processes=n_processes)
     candidate_chooser = None
     if strategy == "complete":
         candidate_chooser = choose_increase_decrease
@@ -127,8 +123,7 @@ def _search(
 
     last_nodes = get_starting_nodes(min_flyups, fly_up_multipliers)
     current_nodes = set()
-    #     # debu_path = np.asarray([0, 0, 17, 1, 0, 1, 0, 1, 189])
-    for iter in tqdm(range(max_iter), total=max_iter):
+    for _iter in tqdm(range(max_iter), total=max_iter):
         solutions = defaultdict(set)
         for node, path in last_nodes:
             for (new_node, new_path), check in _step(node, path):
@@ -140,7 +135,7 @@ def _search(
         yield solutions
     # return solutions
 
-#@profile
+
 def find_solutions(*args):
     solutions = defaultdict(set)
     for solution_batch in _search(*args):
@@ -151,7 +146,6 @@ def find_solutions(*args):
 
 
 def main():
-    global coefs
     parser = ArgumentParser()
     parser.add_argument("distance", default=35840, type=np.float64)
     parser.add_argument(
@@ -175,6 +169,7 @@ def main():
     parser.add_argument("-v0", "--v0", default=7.92, type=float)
     parser.add_argument("-err", "--e", type=float, default=0.035)
     parser.add_argument("-weight", "--w", type=float)
+    parser.add_argument("-uncapped_coef", "--u", type=float, default=1.2)
     parser.add_argument(
         "-strategy", "--s", type=str, choices=["complete", "wise"], default="wise"
     )
