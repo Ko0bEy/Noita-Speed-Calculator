@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from collections import defaultdict
 from tqdm import tqdm
-import numpy as np
 
 from utils import (
     get_starting_nodes,
@@ -21,7 +20,9 @@ def initialize(args):
     coefs = tuple(sorted(float(coef) for coef in args.coefs))
     uncapped_coef = args.u
     specials_idx, extended_coefs = extend_coefs(coefs, uncapped_coef)
-    set_globals(coefs, uncapped_coef)
+    max_specials = args.c
+    v0 = args.v0
+    set_globals(coefs, uncapped_coef, _v0=v0)
     # Search parameters
     max_iter, budget_weight = 0, 0
     mode = args.m
@@ -68,7 +69,7 @@ def initialize(args):
         dmax = (1 + max_rel_err) * distance
     else:
         dmax = args.max
-    v0 = args.v0
+
     target_multiplier = distance / v0
     min_multiplier = dmin / v0
     max_multiplier = dmax / v0
@@ -89,6 +90,7 @@ def initialize(args):
         strategy,
         specials_idx,
         extended_coefs,
+        max_specials
     )
 
 
@@ -98,6 +100,7 @@ def _search(
     target_max,
     coefs=(0.3, 0.32, 0.33, 0.75, 1.68, 2, 2.5, 7.5),
     max_iter=10,
+    max_specials=200,
     strategy="complete",
 ):
     def _step(_node: float, _path: tuple[int]):
@@ -113,7 +116,7 @@ def _search(
             )
         return new_solutions
 
-    min_flyups, fly_up_multipliers = calculate_fly_up_multipliers(target)
+    min_flyups, fly_up_multipliers = calculate_fly_up_multipliers(target, max_len=max_specials)
     candidate_chooser = None
     if strategy == "complete":
         candidate_chooser = choose_increase_decrease
@@ -147,7 +150,7 @@ def find_solutions(*args):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("distance", default=35840, type=np.float64)
+    parser.add_argument("distance", default=35840, type=int)
     parser.add_argument(
         "-mode",
         "--m",
@@ -164,12 +167,13 @@ def main():
         type=str,
         choices=["accurate", "normal", "budget", "ignorebudget"],
     )
-    parser.add_argument("-distance_min", "--min", type=np.float64)
-    parser.add_argument("-distance_max", "--max", type=np.float64)
+    parser.add_argument("-distance_min", "--min", type=int)
+    parser.add_argument("-distance_max", "--max", type=int)
     parser.add_argument("-v0", "--v0", default=7.92, type=float)
     parser.add_argument("-err", "--e", type=float, default=0.035)
     parser.add_argument("-weight", "--w", type=float)
     parser.add_argument("-uncapped_coef", "--u", type=float, default=1.2)
+    parser.add_argument("-cap_uncap", "--c", type=int, default=200)
     parser.add_argument(
         "-strategy", "--s", type=str, choices=["complete", "wise"], default="wise"
     )
@@ -197,6 +201,7 @@ def main():
         strategy,
         specials_idx,
         extended_coefs,
+        max_specials
     ) = initialize(args)
 
     solutions = find_solutions(
@@ -205,6 +210,7 @@ def main():
         max_multiplier,
         coefs,
         max_iter,
+        max_specials,
         strategy,
     )
 

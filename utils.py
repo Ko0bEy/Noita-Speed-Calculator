@@ -18,6 +18,7 @@ decreaser_candidates = set()
 extended_coefs = []
 extension_idx = 0
 uncapped_coef = 0
+v0 = 7.92
 
 modifier_names = {
     0.3: "HeavyS",
@@ -36,14 +37,14 @@ modifier_names = {
 
 
 # call this once to set up the right values for the utility functions
-def set_globals(_coefs: tuple[float], special_coef: float = 1.2) -> None:
+def set_globals(_coefs: tuple[float], special_coef: float = 1.2, _v0=7.92) -> None:
     """
     call this once to set up the right values for the utility functions.
     :param _coefs: modifiers to use
     :param special_coef: uncapped modifier to use (Fly Upwards/Downwards, Faster Projectiles)
     :return: None
     """
-    global log_coefs, increasers, decreasers, coefs, extended_coefs, extension_idx, increaser_candidates, decreaser_candidates, uncapped_coef
+    global log_coefs, increasers, decreasers, coefs, extended_coefs, extension_idx, increaser_candidates, decreaser_candidates, uncapped_coef, v0
     coefs = _coefs
     extension_idx, extended_coefs = extend_coefs(coefs, special_coef)
     log_coefs = np.log(_coefs).tolist()
@@ -52,6 +53,7 @@ def set_globals(_coefs: tuple[float], special_coef: float = 1.2) -> None:
     increaser_candidates = set((1, c) for c in increasers)
     decreaser_candidates = set((1, c) for c in decreasers)
     uncapped_coef = special_coef
+    v0 = _v0
 
 
 def rel_error(val: float, tar: float) -> float:
@@ -312,7 +314,7 @@ def get_multiplier(path: [tuple[int], list[int]]) -> float:
     )
 
 
-def get_distance(multiplier: float, v0: float = 7.92) -> float:
+def get_distance(multiplier: float) -> float:
     """
     calculates the distance traveled, using a give speed multiplier
     :param multiplier: speed multiplier
@@ -343,6 +345,7 @@ def calculate_fly_up_multipliers(
         if 20 >= target_multiplier / res:
             if min_count is None:
                 min_count = cnt
+                max_len -= min_count
             uncapped_multipliers.append(res)
         elif target_multiplier / res < epsilon:
             break
