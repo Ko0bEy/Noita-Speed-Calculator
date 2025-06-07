@@ -1,33 +1,42 @@
-# efficient_pattern_solver.py
-"""Geometry-based projectile pattern solver
+"""Geometry‑based projectile pattern solver — duplicate‑aware, companion‑exe friendly
 
-Fixes in this revision
-----------------------
-* **Duplicate-error pruning** – For any given rounded angular error we now keep **only the solution
-  with the smallest total projectile count**.  This removes near-identical entries such as
-  `(L,R,N) = (1,3,5) / (2,6,9) / (3,9,13)` that differed only by scaling.
-* Cleaned up `_unique_solutions`, added docstring and tests.
-* Minor refactor: renamed main script to `efficient_pattern_solver.py`.
+Changes in this revision
+------------------------
+1. **Duplicate‑error pruning re‑implemented with GCD normalisation**
+   Identical patterns that differ only by a common integer scale factor
+   (e.g. `(L,R,N) = (2,6,10)` vs. `(1,3,5)`) are now detected by dividing
+   each triple by `gcd(L,R,N)` and keeping only the solution with the
+   *smallest* total projectile count.
+2. **Robust helper‑exe launch**
+   `speed_calc.exe` is looked up **relative to** the folder that contains
+   *this* executable, so users can simply unzip both `.exe` files into the
+   same directory and run.
+3. **Minor clean‑ups**
+   * Added `_gcd3` helper.
+   * Docstrings clarified.
+   * Error on missing `speed_calc.exe` is now fatal (non‑zero exit).
 """
 from __future__ import annotations
 
 import argparse
 import math
+import os
 import subprocess
+import sys
 from dataclasses import dataclass
-from typing import Iterable, List, Tuple, Dict
+from typing import Dict, Iterable, List, Tuple
 
 # -----------------------------------------------------------------------------
 # Geometry helpers
 # -----------------------------------------------------------------------------
 
 def _angle_normalise(angle: float) -> float:
-    """Return *angle* mapped to `[0, 360)`."""
+    """Return *angle* mapped to ``[0, 360)`` (degrees)."""
     return angle % 360.0
 
 
 def _angle_difference(a: float, b: float) -> float:
-    """Absolute smallest difference |a − b| on the unit circle (degrees)."""
+    """Absolute smallest difference |a − b| along the unit circle (degrees)."""
     diff = (a - b + 180.0) % 360.0 - 180.0
     return abs(diff)
 
@@ -46,14 +55,14 @@ class Point:
 
 @dataclass
 class Solution:
-    pattern_degree: int  # half-angle for the pattern (or 180 for full circle)
-    left: int            # index of the projectile chosen on the left side
-    right: int           # index on the right side (redundant but convenient)
-    total: int           # total number of projectiles
-    error_deg: float     # angular error between projectile and target
+    pattern_degree: int  # half‑angle for the pattern (180 ⇒ full circle)
+    left: int            # index of the chosen projectile on the left
+    right: int           # symmetrical partner (redundant, kept for CLI)
+    total: int           # total projectile count (== N)
+    error_deg: float     # angular error to the target (degrees)
 
-    # The lower the tuple, the better (total projectiles, then error)
     def score(self) -> Tuple[int, float]:
+        """Lower tuple ⇒ better solution (fewest projectiles, then accuracy)."""
         return self.total, self.error_deg
 
 # -----------------------------------------------------------------------------
@@ -61,7 +70,7 @@ class Solution:
 # -----------------------------------------------------------------------------
 
 def _target_angle(p1: Point, p2: Point) -> float:
-    """Clock-wise bearing (°) from p1 to p2, with 0° pointing to +X."""
+    """Clock‑wise bearing (°) from *p1* to *p2*, with 0° pointing to +X."""
     dx = p2.x - p1.x
     dy = p2.y - p1.y
     ccw = math.degrees(math.atan2(-dy, dx))
@@ -70,20 +79,20 @@ def _target_angle(p1: Point, p2: Point) -> float:
 
 
 def _step(pattern_degree: int, total: int) -> float:
-    """Angular spacing Δ between consecutive projectiles (°)."""
+    """Angular spacing Δ between consecutive projectiles (degrees)."""
     if pattern_degree == 180:
-        # Full circle pattern – evenly distributed 360/N
+        # Full‑circle pattern – evenly distributed
         return 360.0 / total
-    # Fan (two-sided, symmetric) pattern – span = 2·pattern_degree
+    # Fan pattern – span = 2·pattern_degree
     return (2.0 * pattern_degree) / (total - 1)
 
 
 def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -> Solution:
-    """For a *fixed* pattern configuration, choose L that minimises error."""
-    start = shot_angle - pattern_degree  # left-most ray angle
+    """For a *fixed* pattern configuration, choose *L* that minimises error."""
+    start = shot_angle - pattern_degree  # left‑most ray angle
     delta = _step(pattern_degree, total)
 
-    # The index that *would* hit the target if spacing were perfect
+    # Index that *would* hit the target if spacing were perfect
     ideal = round((_angle_normalise(target - start)) / delta)
 
     best: Solution | None = None
@@ -95,7 +104,7 @@ def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -
             if best is None or err < best.error_deg - 1e-12:
                 best = cand
 
-    # Fallback – exhaustive (rarely executed)
+    # Fallback – exhaustive (edge‑case safety)
     if best is None:
         for L in range(total):
             theta_L = _angle_normalise(start + L * delta)
@@ -106,6 +115,28 @@ def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -
     assert best is not None
     return best
 
+# -----------------------------------------------------------------------------
+# Duplicate‑pruning helpers
+# -----------------------------------------------------------------------------
+
+def _gcd3(a: int, b: int, c: int) -> int:
+    """Greatest common divisor of three non‑negative integers."""
+    return math.gcd(a, math.gcd(b, c))
+
+
+def _normalised_key(sol: Solution) -> Tuple[int, int, int, int]:
+    """Return a hashable key that is invariant under integer scaling."""
+    g = _gcd3(sol.left, sol.right, sol.total)
+    return (
+        sol.pattern_degree,
+        sol.left // g,
+        sol.right // g,
+        sol.total // g,
+    )
+
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
 
 def find_efficient_solutions(
     p1: Point,
@@ -116,27 +147,28 @@ def find_efficient_solutions(
     max_N: int = 100,
     tolerance_deg: float = 1e-3,
 ) -> List[Solution]:
-    """Generate solutions whose angular error ≤ *tolerance_deg*."""
+    """Return all solutions whose error ≤ *tolerance_deg*,
+    deduplicated by GCD normalisation.
+    """
     tgt = _target_angle(p1, p2)
 
-    # Use a dict keyed by rounded error – we keep only the smallest *total*
-    keep: Dict[Tuple[int, float], Solution] = {}
+    keep: Dict[Tuple[int, int, int, int], Solution] = {}
 
     for pd in pattern_options:
         for N in range(2, max_N + 1):
             sol = _best_L(pd, shot_angle, N, tgt)
             if sol.error_deg > tolerance_deg:
-                # With symmetric patterns, increasing N never *increases* the min error,
-                # but once the error is already above tolerance, we can still try larger N
-                # to let spacing hit the target.  So we *cannot* break here safely.
-                pass
-            if sol.error_deg <= tolerance_deg:
-                key = (pd, round(sol.error_deg, 6))
-                prev = keep.get(key)
-                if prev is None or sol.total < prev.total:
-                    keep[key] = sol
+                # Continue scanning – a later N could still meet tolerance
+                continue
 
-    # Return as a list, sorted by (pattern_degree, error, total)
+            key = _normalised_key(sol)
+            prev = keep.get(key)
+            if prev is None or sol.total < prev.total or (
+                sol.total == prev.total and sol.error_deg < prev.error_deg - 1e-12
+            ):
+                keep[key] = sol
+
+    # Sort by (pattern_degree, error, total)
     return sorted(keep.values(), key=lambda s: (s.pattern_degree, s.error_deg, s.total))
 
 # -----------------------------------------------------------------------------
@@ -154,7 +186,9 @@ def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
 # -----------------------------------------------------------------------------
 
 def _cli() -> None:
-    parser = argparse.ArgumentParser(description="Projectile pattern optimiser – minimal duplicates version")
+    parser = argparse.ArgumentParser(
+        description="Projectile pattern optimiser – duplicate‑aware GCD version"
+    )
     parser.add_argument("x0", type=float)
     parser.add_argument("y0", type=float)
     parser.add_argument("x1", type=float)
@@ -189,21 +223,25 @@ def _cli() -> None:
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
         group = grouped[pd]
-        most_accurate = sorted(group, key=lambda s: s.error_deg)[:args.top]
-        fewest_projectiles = sorted(group, key=lambda s: s.total)[:args.top]
+        most_accurate = sorted(group, key=lambda s: s.error_deg)[: args.top]
+        fewest_projectiles = sorted(group, key=lambda s: s.total)[: args.top]
         print(f"\nPattern Degree: {pd}")
 
         print("  Most Accurate (top 3):")
         print("    L | R | N | Error (deg)")
         print("   --|---|----|------------")
         for sol in most_accurate:
-            print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
+            print(
+                f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}"
+            )
 
         print("  Fewest Projectiles (top 3):")
         print("    L | R | N | Error (deg)")
         print("   --|---|----|------------")
         for sol in fewest_projectiles:
-            print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
+            print(
+                f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}"
+            )
 
     if eff:
         best = min(eff, key=lambda s: s.score())
@@ -214,19 +252,29 @@ def _cli() -> None:
             f"Error: {best.error_deg:.6f}°"
         )
 
-    # Optional external call remains unchanged
-    print(f"\nRunning: ./speed_calc.exe {dist:.6f} --tol {args.tolerance}")
+    # ------------------------------------------------------------------
+    # Call companion \"speed_calc.exe\" sitting next to this executable
+    # ------------------------------------------------------------------
+    exe_dir = os.path.dirname(sys.executable)  # works for PyInstaller bundles
+    speed_calc = os.path.join(exe_dir, "speed_calc.exe")
+
+    print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
     try:
-        subprocess.run([
-            "./speed_calc.exe",
-            f"{dist:.6f}",
-            "--tol",
-            f"{args.tolerance}",
-        ], check=True)
+        subprocess.run(
+            [
+                speed_calc,
+                f"{dist:.6f}",
+                "--tol",
+                f"{args.tolerance}",
+            ],
+            check=True,
+        )
     except FileNotFoundError:
-        print("Warning: speed_calc.exe not found – skipping speed-solver step")
-    except Exception as exc:
-        print(f"Warning: Could not run speed solver: {exc}")
+        print("Error: speed_calc.exe not found in the same folder. Aborting.")
+        sys.exit(1)
+    except subprocess.CalledProcessError as exc:
+        print(f"Error: speed solver exited with status {exc.returncode}.")
+        sys.exit(exc.returncode)
 
 
 if __name__ == "__main__":
