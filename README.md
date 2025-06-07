@@ -27,7 +27,7 @@ angle_solver.exe 0 0 6400 15000 -t 0.02
 
 Prints the most accurate + fewest-projectile formations to hit `(6400, 15000)` from the origin.
 Also find suitable speed modifier solutions.
----
+
 
 ## Speed solver - PW Travel
 
