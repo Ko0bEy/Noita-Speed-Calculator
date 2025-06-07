@@ -215,10 +215,10 @@ def _cli() -> None:
         )
 
     # Optional external call remains unchanged
-    print(f"\nRunning: speed_calc {dist:.6f} --tol {args.tolerance}")
+    print(f"\nRunning: ./speed_calc.exe {dist:.6f} --tol {args.tolerance}")
     try:
         subprocess.run([
-            "speed_calc.exe",
+            "./speed_calc.exe",
             f"{dist:.6f}",
             "--tol",
             f"{args.tolerance}",
