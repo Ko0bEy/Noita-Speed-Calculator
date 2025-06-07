@@ -132,6 +132,7 @@ def _run_cli(argv: List[str] | None = None) -> None:
     for s in sols:
         print(_row(s, args.coefs, args.base_speed, args.distance, w))
     print(f"\n{len(sols)} solution(s) shown in {ms:.2f} ms")
+    print(f"Best solution at the top!")
 
 if __name__ == "__main__":
     _run_cli()
