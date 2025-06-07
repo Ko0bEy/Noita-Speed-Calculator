@@ -1,228 +1,137 @@
-from argparse import ArgumentParser
-from collections import defaultdict
-from tqdm import tqdm
+from __future__ import annotations
+import argparse, bisect, itertools, math, time
+from dataclasses import dataclass
+from typing import List, Sequence, Tuple, Set
 
-from utils import (
-    get_starting_nodes,
-    calculate_fly_up_multipliers,
-    check_solution,
-    print_results,
-    extend_coefs,
-    choose_increase_decrease,
-    choose_wisely,
-    set_globals,
-    get_multiplier
-)
+DEFAULT_COEFS = [1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]
+DEFAULT_BASE_SPEED = 7.92
+DEFAULT_PROD_CAP = 20.0
+DEFAULT_TOP_N = 50
+LABELS = ["flyup", "heavy", "accel", "phasing", "explo", "decel", "slither", "speed", "light"]
 
+@dataclass(slots=True, frozen=True)
+class _HalfVector:
+    log_cap: float
+    log_full: float
+    nz: int
+    s: int
+    vec: Tuple[int, ...]
 
-def initialize(args):
-    strategy = args.s
-    coefs = tuple(sorted(float(coef) for coef in args.coefs))
-    uncapped_coef = args.u
-    specials_idx, extended_coefs = extend_coefs(coefs, uncapped_coef)
-    max_specials = args.c
-    v0 = args.v0
-    set_globals(coefs, uncapped_coef, _v0=v0)
-    # Search parameters
-    max_iter, budget_weight = 0, 0
-    mode = args.m
-    if mode == "shallow":
-        max_iter = 3
-    elif mode == "normal":
-        max_iter = 6
-    elif mode == "deep":
-        max_iter = 9
-    elif mode == "verydeep":
-        max_iter = 18
+@dataclass(slots=True)
+class Solution:
+    vec: Tuple[int, ...]
+    rel_err: float
+    abs_err: float
+    nz_other: int
+    sum_other: int
+    def key(self):
+        return (self.nz_other, self.sum_other, self.vec[0], self.rel_err)
 
-    if args.iter is not None:
-        max_iter = args.iter
+def _upper_bounds(a: Sequence[float], uncapped: Set[int], log_c_hi: float, prod_cap: float, x0_margin: int) -> List[int]:
+    ln = math.log
+    bounds = [int(math.ceil(log_c_hi / ln(a[0])) + x0_margin)]
+    for i, ai in enumerate(a[1:], 1):
+        if i in uncapped or ai <= 1.0:
+            bounds.append(int(math.floor(log_c_hi / abs(math.log(ai)))))
+        else:
+            bounds.append(int(math.floor(math.log(prod_cap) / math.log(ai))))
+    return bounds
 
-    budget = args.b
-    max_rel_err = None
+def _enumerate_half(idxs: List[int], ub: List[int], log_a: List[float], uncapped: Set[int], log_cap: float) -> List[_HalfVector]:
+    res: List[_HalfVector] = []
+    for xs in itertools.product(*(range(ub[i] + 1) for i in idxs)):
+        log_full = sum(x * log_a[i] for x, i in zip(xs, idxs))
+        log_cap_sum = sum(x * log_a[i] for x, i in zip(xs, idxs) if i not in uncapped)
+        if log_cap_sum < log_cap:
+            res.append(_HalfVector(log_cap_sum, log_full, sum(x > 0 for x in xs), sum(xs), xs))
+    return res
 
-    if budget == "budget":
-        budget_weight = 2.0
-        max_rel_err = 0.035
-    elif budget == "normal":
-        budget_weight = 1.0
-        max_rel_err = 0.01
-    elif budget == "accurate":
-        budget_weight = 0.5
-        max_rel_err = 0.001
-    elif budget == "ignorebudget":
-        budget_weight = 0.0
-        max_rel_err = 0.001
+def _split(n: int) -> Tuple[List[int], List[int]]:
+    mid = n // 2
+    return list(range(1, 1 + mid)), list(range(1 + mid, 1 + n))
 
-    if args.w is not None:
-        budget_weight = args.w
+def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = DEFAULT_BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = DEFAULT_PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10) -> List[Solution]:
+    if len(coefs) < 2 or coefs[0] <= 1: raise ValueError
+    if min(coefs) <= 0: raise ValueError
+    uncapped: Set[int] = {0} | set(map(int, uncapped_indices or []))
+    if any(i < 0 or i >= len(coefs) for i in uncapped): raise ValueError
+    target_c = distance / base_speed
+    log_c = math.log(target_c)
+    log_c_hi = math.log(target_c * (1 + rel_tol))
+    log_cap = math.log(prod_cap)
+    log_a = [math.log(a) for a in coefs]
+    ub = _upper_bounds(coefs, uncapped, log_c_hi, prod_cap, x0_margin)
+    n_other = len(coefs) - 1
+    idx_A, idx_B = _split(n_other)
+    list_A = _enumerate_half(idx_A, ub, log_a, uncapped, log_cap)
+    list_B = _enumerate_half(idx_B, ub, log_a, uncapped, log_cap)
+    list_B.sort(key=lambda h: h.log_cap)
+    caps_B = [h.log_cap for h in list_B]
+    ln_a0 = log_a[0]
+    sols: List[Solution] = []
+    for ha in list_A:
+        rem = log_cap - ha.log_cap
+        cutoff = bisect.bisect_left(caps_B, rem)
+        for hb in list_B[:cutoff]:
+            log_full = ha.log_full + hb.log_full
+            x0 = int(round((log_c - log_full) / ln_a0))
+            if x0 < 0: continue
+            total_log = log_full + x0 * ln_a0
+            rel_err = abs(math.expm1(total_log - log_c))
+            if rel_err > rel_tol: continue
+            dist_est = math.exp(total_log) * base_speed
+            abs_err = abs(dist_est - distance)
+            vec = (x0,) + ha.vec + hb.vec
+            sols.append(Solution(vec, rel_err, abs_err, ha.nz + hb.nz, ha.s + hb.s))
+    return sorted({s.vec: s for s in sols}.values(), key=lambda s: s.key())[: top_n]
 
-    if args.e is not None:
-        max_rel_err = args.e
+def _labels(coefs: Sequence[float]) -> List[str]:
+    if list(coefs) == DEFAULT_COEFS:
+        return LABELS
+    return [f"{a}" for a in coefs]
 
-    distance = args.distance
-    if args.min is None:
-        dmin = (1 - max_rel_err) * distance
-    else:
-        dmin = args.min
-    if args.max is None:
-        dmax = (1 + max_rel_err) * distance
-    else:
-        dmax = args.max
+def _col_w(sols: List[Solution], labels: List[str]) -> int:
+    if not sols: return 4
+    return max(4, len(str(max(max(s.vec) for s in sols))), max(len(l) for l in labels))
 
-    target_multiplier = distance / v0
-    min_multiplier = dmin / v0
-    max_multiplier = dmax / v0
+def _header(labels: List[str], w: int) -> str:
+    cols = " ".join(l.rjust(w) for l in labels)
+    return f"{cols} |   distance  | abs_error | rel_error"
 
-    return (
-        distance,
-        coefs,
-        dmin,
-        dmax,
-        v0,
-        max_rel_err,
-        max_iter,
-        target_multiplier,
-        min_multiplier,
-        max_multiplier,
-        budget,
-        budget_weight,
-        strategy,
-        specials_idx,
-        extended_coefs,
-        max_specials
-    )
+def _row(sol: Solution, coefs: Sequence[float], base_speed: float, distance: float, w: int) -> str:
+    exps = " ".join(f"{x:>{w}d}" if x else " " * w for x in sol.vec)
+    dist_est = math.prod(a ** x for a, x in zip(coefs, sol.vec)) * base_speed
+    return f"{exps} | {dist_est:11.5g} | {sol.abs_err:9.0f}px | {sol.rel_err:9.2e}"
 
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser()
+    p.add_argument("distance", type=float)
+    p.add_argument("--coefs", "-c", type=float, nargs="+", default=DEFAULT_COEFS)
+    p.add_argument("--base-speed", "-b", type=float, default=DEFAULT_BASE_SPEED)
+    p.add_argument("--tol", "-t", type=float, dest="rel_tol", default=5e-3)
+    p.add_argument("--prod-cap", "-p", type=float, default=DEFAULT_PROD_CAP)
+    p.add_argument("--top-n", "-n", type=int, default=DEFAULT_TOP_N)
+    p.add_argument("--uncapped", "-u", type=int, nargs="*", default=[])
+    return p
 
-def _search(
-    target,
-    target_min,
-    target_max,
-    coefs=(0.3, 0.32, 0.33, 0.75, 1.68, 2, 2.5, 7.5),
-    max_iter=10,
-    max_specials=200,
-    strategy="complete",
-):
-    def _step(_node: float, _path: tuple[int]):
-        candidates = candidate_chooser(_node, target)
-        new_solutions = set()
-        for a, c in candidates:
-            _new_path = list(_path)
-            _new_path[coefs.index(c)] += a
-            # new_solution = (node * c**a, tuple(new_path))
-            new_solution = (get_multiplier(_new_path), tuple(_new_path))
-            new_solutions.add(
-                (new_solution, check_solution(new_solution[0], target_min, target_max))
-            )
-        return new_solutions
-
-    min_flyups, fly_up_multipliers = calculate_fly_up_multipliers(target, max_len=max_specials)
-    candidate_chooser = None
-    if strategy == "complete":
-        candidate_chooser = choose_increase_decrease
-    else:
-        assert strategy == "wise"
-        candidate_chooser = choose_wisely
-
-    last_nodes = get_starting_nodes(min_flyups, fly_up_multipliers)
-    current_nodes = set()
-    for _iter in tqdm(range(max_iter), total=max_iter):
-        solutions = defaultdict(set)
-        for node, path in last_nodes:
-            for (new_node, new_path), check in _step(node, path):
-                current_nodes.add((new_node, new_path))
-                if check:
-                    solutions[new_node].add(new_path)
-        last_nodes = current_nodes
-        current_nodes = set()
-        yield solutions
-    # return solutions
-
-
-def find_solutions(*args):
-    solutions = defaultdict(set)
-    for solution_batch in _search(*args):
-        for multiplier, paths in solution_batch.items():
-            node = multiplier
-            solutions[node] = solutions[node].union(paths)
-    return solutions
-
-
-def main():
-    parser = ArgumentParser()
-    parser.add_argument("distance", default=35840, type=int)
-    parser.add_argument(
-        "-mode",
-        "--m",
-        default="shallow",
-        required=False,
-        type=str,
-        choices=["normal", "shallow", "deep", "verydeep"],
-    )
-    parser.add_argument(
-        "-budget",
-        "--b",
-        default="normal",
-        required=False,
-        type=str,
-        choices=["accurate", "normal", "budget", "ignorebudget"],
-    )
-    parser.add_argument("-distance_min", "--min", type=int)
-    parser.add_argument("-distance_max", "--max", type=int)
-    parser.add_argument("-v0", "--v0", default=7.92, type=float)
-    parser.add_argument("-err", "--e", type=float, default=0.035)
-    parser.add_argument("-weight", "--w", type=float)
-    parser.add_argument("-uncapped_coef", "--u", type=float, default=1.2)
-    parser.add_argument("-cap_uncap", "--c", type=int, default=200)
-    parser.add_argument(
-        "-strategy", "--s", type=str, choices=["complete", "wise"], default="wise"
-    )
-    parser.add_argument(
-        "-coefs", nargs="+", default=(0.3, 0.32, 0.33, 0.75, 1.68, 2, 2.5, 7.5)
-    )
-    parser.add_argument("-iter_max", "--iter", type=int)
-
-    args = parser.parse_args()
-    print(args)
-
-    (
-        distance,
-        coefs,
-        dmin,
-        dmax,
-        v0,
-        max_rel_err,
-        max_iter,
-        target_multiplier,
-        min_multiplier,
-        max_multiplier,
-        budget,
-        budget_weight,
-        strategy,
-        specials_idx,
-        extended_coefs,
-        max_specials
-    ) = initialize(args)
-
-    solutions = find_solutions(
-        target_multiplier,
-        min_multiplier,
-        max_multiplier,
-        coefs,
-        max_iter,
-        max_specials,
-        strategy,
-    )
-
-    if solutions:
-        print_results(
-            solutions,
-            50,
-            distance,
-            target_multiplier,
-            budget_weight,
-        )
-
+def _run_cli(argv: List[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
+    abs_tol = args.rel_tol * args.distance
+    start = time.perf_counter()
+    sols = find_sparse_solutions(coefs=args.coefs, distance=args.distance, base_speed=args.base_speed, rel_tol=args.rel_tol, prod_cap=args.prod_cap, top_n=args.top_n, uncapped_indices=args.uncapped)
+    ms = (time.perf_counter() - start) * 1_000
+    if not sols:
+        print("No solution found.")
+        return
+    labels = _labels(args.coefs)
+    w = _col_w(sols, labels)
+    print(f"Target distance = {args.distance}  (Error tolerance={abs_tol:.0f}px)")
+    head = _header(labels, w)
+    print(head)
+    print("-" * len(head))
+    for s in sols:
+        print(_row(s, args.coefs, args.base_speed, args.distance, w))
+    print(f"\n{len(sols)} solution(s) shown in {ms:.2f} ms")
 
 if __name__ == "__main__":
-    main()
+    _run_cli()
