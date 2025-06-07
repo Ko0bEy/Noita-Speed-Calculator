@@ -215,7 +215,7 @@ def _cli() -> None:
         )
 
     # Optional external call remains unchanged
-    print(f"\nRunning: python ai speed solver o3.py {dist:.6f} --tol {args.tolerance}")
+    print(f"\nRunning: speed_calc {dist:.6f} --tol {args.tolerance}")
     try:
         subprocess.run([
             "speed_calc.exe",

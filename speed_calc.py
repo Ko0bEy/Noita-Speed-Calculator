@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import List, Sequence, Tuple, Set
 
 DEFAULT_COEFS = [1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]
-DEFAULT_BASE_SPEED = 7.92
-DEFAULT_PROD_CAP = 20.0
+BASE_SPEED = 7.92
+PROD_CAP = 20.0
 DEFAULT_TOP_N = 50
 LABELS = ["flyup", "heavy", "accel", "phasing", "explo", "decel", "slither", "speed", "light"]
 
@@ -50,7 +50,7 @@ def _split(n: int) -> Tuple[List[int], List[int]]:
     mid = n // 2
     return list(range(1, 1 + mid)), list(range(1 + mid, 1 + n))
 
-def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = DEFAULT_BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = DEFAULT_PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10) -> List[Solution]:
+def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10) -> List[Solution]:
     if len(coefs) < 2 or coefs[0] <= 1: raise ValueError
     if min(coefs) <= 0: raise ValueError
     uncapped: Set[int] = {0} | set(map(int, uncapped_indices or []))
@@ -98,9 +98,9 @@ def _header(labels: List[str], w: int) -> str:
     cols = " ".join(l.rjust(w) for l in labels)
     return f"{cols} |   distance  | abs_error | rel_error"
 
-def _row(sol: Solution, coefs: Sequence[float], base_speed: float, distance: float, w: int) -> str:
+def _row(sol: Solution, coefs: Sequence[float], w: int) -> str:
     exps = " ".join(f"{x:>{w}d}" if x else " " * w for x in sol.vec)
-    dist_est = math.prod(a ** x for a, x in zip(coefs, sol.vec)) * base_speed
+    dist_est = math.prod(a ** x for a, x in zip(coefs, sol.vec)) * BASE_SPEED
     return f"{exps} | {dist_est:11.5g} | {sol.abs_err:9.0f}px | {sol.rel_err:9.2e}"
 
 def _parser() -> argparse.ArgumentParser:
@@ -116,7 +116,7 @@ def _run_cli(argv: List[str] | None = None) -> None:
     args = _parser().parse_args(argv)
     abs_tol = args.rel_tol * args.distance
     start = time.perf_counter()
-    sols = find_sparse_solutions(coefs=args.coefs, distance=args.distance, base_speed=args.base_speed, rel_tol=args.rel_tol, prod_cap=args.prod_cap, top_n=args.top_n, uncapped_indices=args.uncapped)
+    sols = find_sparse_solutions(coefs=args.coefs, distance=args.distance, base_speed=BASE_SPEED, rel_tol=args.rel_tol, prod_cap=PROD_CAP, top_n=args.top_n, uncapped_indices=args.uncapped)
     ms = (time.perf_counter() - start) * 1_000
     if not sols:
         print("No solution found.")
@@ -128,7 +128,7 @@ def _run_cli(argv: List[str] | None = None) -> None:
     print(head)
     print("-" * len(head))
     for s in sols:
-        print(_row(s, args.coefs, args.base_speed, args.distance, w))
+        print(_row(s, args.coefs, w))
     print(f"\n{len(sols)} solution(s) shown in {ms:.2f} ms")
     print(f"Best solution at the top!")
 
