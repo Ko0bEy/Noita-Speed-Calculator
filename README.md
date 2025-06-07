@@ -1,35 +1,59 @@
-# Noita-Speed-Calculator
-Finds Combinations of modifiers to use for Speed Based Long Distance Travel.
+# Noita Speed Calculator
 
-### Standalone Version
-- open a console and navigate to the folder of the .exe, then run one of the commands below
+CLI tool to find builds for arbitrary teleports in **Noita**.
+
+---
+
+## Angle Solver: Arbitrary teleport
+
+```bash
+angle_solver.exe x0 y0 x1 y1 [options]
+```
+
+Also runs speed_calc for the distance.
+
+| option               | default | meaning                                                |
+| -------------------- |---------| ------------------------------------------------------ |
+| `-a, --shot-angle °` | `90`    | base facing direction (0° = +X, clockwise)             |
+| `-n, --max-n`        | `100`   | upper limit for projectile count that will be searched |
+| `-t, --tolerance`    | `0.01`  | angular tolerance (radians)                            |
+| `--top`              | `3`     | how many rows to print per pattern degree              |
+
+### Example
+
+```bash
+angle_solver.exe 0 0 6400 15000 -t 0.02
+```
+
+Prints the most accurate + fewest-projectile formations to hit `(6400, 15000)` from the origin.
+Also find suitable speed modifier solutions.
 
 
-### Example Usage:
+## Speed solver - PW Travel
 
+```bash
+python speed_calc.exe DISTANCE [options]
+```
 
-#### New Game PW Travel 
-Standard settings, shallow search depth
+| option             | default  | meaning                                                |
+| ------------------ | -------- |--------------------------------------------------------|
+| `-c, --coefs`      | see code | speed multipliers per modifier / perk                  |
+| `-t, --tol`        | `5e-3`   | relative error tolerance                               |
+| `-n, --top-n`      | `50`     | number of solutions to print                           |
+| `-u, --uncapped`   |          | indices whose multipliers are **uncapped** (besides 0) |
 
-`speed_calc.exe 35840`
+### Examples
 
-#### New Game Plus PW Travel
-Favor Budget Builds, normal search depth
+```bash
+# Closest match for 12 000 px flight-path
+speed_calc.exe 12000
 
-`speed_calc.exe 32760 -b budget -m normal`
-#### Minimum Terrain duping distance
-Favor more accurate solutions and search deeper:
+# Same, but allow multiplier index 2 to exceed the 20× cap
+speed_calc.exe 12000 -u 2
+```
 
-`speed_calc.exe 262144 -b accurate -m deep`
+Both commands print the top solutions in `nz_other / sum_other / x0 / rel_err` order.
 
-#### Floating Point Limit: 
-Search very deep, give very little weight to easiness, but restrict to only some modifiers for a massive speedup
+---
 
-`speed_calc.exe 536870912 -b accurate -m verydeep -w 0.01 -coefs 0.32 0.75 1.68 2.0`
-
-### Manual Setup
-- Install python.
-- Clone this repository, or download the code as a zip file, and extract it.
-- Open a console and navigate to the code directory
-- Install the dependencies:`pip install -r requirements.txt`
-
+*All CLI flags have `--help`.
