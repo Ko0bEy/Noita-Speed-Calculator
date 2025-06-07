@@ -162,7 +162,7 @@ def _cli() -> None:
     parser.add_argument("-a", "--shot-angle", type=float, default=90.0)
     parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100)
     parser.add_argument("-t", "--tolerance", type=float, default=0.01)
-    parser.add_argument("--top", type=int, default=40)
+    parser.add_argument("--top", type=int, default=3)
 
     args = parser.parse_args()
 
@@ -189,8 +189,8 @@ def _cli() -> None:
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
         group = grouped[pd]
-        most_accurate = sorted(group, key=lambda s: s.error_deg)[:3]
-        fewest_projectiles = sorted(group, key=lambda s: s.total)[:3]
+        most_accurate = sorted(group, key=lambda s: s.error_deg)[:args.top]
+        fewest_projectiles = sorted(group, key=lambda s: s.total)[:args.top]
         print(f"\nPattern Degree: {pd}")
 
         print("  Most Accurate (top 3):")

@@ -107,9 +107,7 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("distance", type=float)
     p.add_argument("--coefs", "-c", type=float, nargs="+", default=DEFAULT_COEFS)
-    p.add_argument("--base-speed", "-b", type=float, default=DEFAULT_BASE_SPEED)
     p.add_argument("--tol", "-t", type=float, dest="rel_tol", default=5e-3)
-    p.add_argument("--prod-cap", "-p", type=float, default=DEFAULT_PROD_CAP)
     p.add_argument("--top-n", "-n", type=int, default=DEFAULT_TOP_N)
     p.add_argument("--uncapped", "-u", type=int, nargs="*", default=[])
     return p
