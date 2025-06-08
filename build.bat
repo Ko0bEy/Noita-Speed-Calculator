@@ -1,27 +1,34 @@
 @echo off
-REM Force working directory to location of this script
-cd /d %~dp0
+REM Build both .exe using pyinstaller (adjust .spec/.py if needed)
+pyinstaller --onefile angle_solver.py
+pyinstaller --onefile speed_calc.py
 
-REM venv is assumed to be in the same directory as this script
-set "VENV=%CD%\venv"
+REM Set target/output directory (adjust if you use something else)
+set DISTDIR=dist
 
-REM Set target directory (customize)
-set "TARGETDIR=D:\speed_calc"
+REM Name your zip package (e.g., noita_tools_win64.zip)
+set ZIPNAME=noita_tools_win64.zip
 
-REM Remove old .spec files if present (to avoid permission issues)
-del /F /Q "angle_solver.spec" 2>nul
-del /F /Q "speed_calc.spec" 2>nul
+REM Remove any old zip with same name
+if exist "%DISTDIR%\%ZIPNAME%" del "%DISTDIR%\%ZIPNAME%"
 
-REM Use the venv's python to run pyinstaller
-"%VENV%\Scripts\python.exe" -m PyInstaller --onefile --hidden-import=matplotlib.backends --hidden-import=matplotlib.backends.backend_tkagg angle_solver.py
-"%VENV%\Scripts\python.exe" -m PyInstaller --onefile --hidden-import=matplotlib.backends --hidden-import=matplotlib.backends.backend_tkagg speed_calc.py
+REM Go to dist, zip both .exe
+cd /d "%DISTDIR%"
+REM Use Windows built-in Compress-Archive if on Win 10+ PowerShell, else fallback to 7z if installed
 
-REM Create target directory if it doesn't exist
-if not exist "%TARGETDIR%" mkdir "%TARGETDIR%"
+REM Try with PowerShell Compress-Archive
+powershell -Command "Compress-Archive -Path angle_solver.exe,speed_calc.exe -DestinationPath '%ZIPNAME%'"
 
-REM Copy the EXEs to the target directory
-copy /Y "dist\angle_solver.exe" "%TARGETDIR%" >nul
-copy /Y "dist\speed_calc.exe" "%TARGETDIR%" >nul
+REM Fallback: if PowerShell doesn't exist or fails, try with 7-Zip if installed
+if not exist "%ZIPNAME%" (
+    if exist "%ProgramFiles%\7-Zip\7z.exe" (
+        "%ProgramFiles%\7-Zip\7z.exe" a "%ZIPNAME%" angle_solver.exe speed_calc.exe
+    ) else (
+        echo Could not create zip file. Please install 7-Zip or use a system with PowerShell.
+        pause
+    )
+)
 
-echo Build and copy complete.
+REM Done!
+echo Packaging complete. Created: %DISTDIR%\%ZIPNAME%
 pause
