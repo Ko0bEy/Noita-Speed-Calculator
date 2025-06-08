@@ -8,6 +8,7 @@ BASE_SPEED = 7.92
 PROD_CAP = 20.0
 DEFAULT_TOP_N = 50
 LABELS = ["flyup", "heavy", "accel", "phasing", "explo", "decel", "slither", "speed", "light"]
+DEFAULT_SORTING_PRIORITY = ('nz_other', 'sum_other', 'rel_err')
 
 @dataclass(slots=True, frozen=True)
 class _HalfVector:
@@ -17,15 +18,27 @@ class _HalfVector:
     s: int
     vec: Tuple[int, ...]
 
+# Allow user-defined sort priority (order and direction)
 @dataclass(slots=True)
 class Solution:
-    vec: Tuple[int, ...]
+    vec: tuple
     rel_err: float
-    abs_err: float
+    signed_err: float
     nz_other: int
     sum_other: int
-    def key(self):
-        return (self.nz_other, self.sum_other, self.vec[0], self.rel_err)
+    def key(self, sort_priority: list[str] = DEFAULT_SORTING_PRIORITY):
+        key_tuple = []
+        for k in sort_priority:
+            reverse = False
+            if k.startswith('-'):
+                reverse = True
+                k = k[1:]
+            val = getattr(self, k)
+            # rel_err is always sorted by absolute value
+            if k == 'rel_err':
+                val = abs(val)
+            key_tuple.append(-val if reverse else val)
+        return tuple(key_tuple)
 
 def _upper_bounds(a: Sequence[float], uncapped: Set[int], log_c_hi: float, prod_cap: float, x0_margin: int) -> List[int]:
     ln = math.log
@@ -50,7 +63,7 @@ def _split(n: int) -> Tuple[List[int], List[int]]:
     mid = n // 2
     return list(range(1, 1 + mid)), list(range(1 + mid, 1 + n))
 
-def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10) -> List[Solution]:
+def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10, sort_priority = DEFAULT_SORTING_PRIORITY) -> List[Solution]:
     if len(coefs) < 1 or coefs[0] <= 1:
         raise ValueError("At least 1 coefficients required, with coefs[0] > 1.")
     if min(coefs) <= 0:
@@ -84,14 +97,14 @@ def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed
             rel_err = abs(math.expm1(total_log - log_c))
             if rel_err > rel_tol: continue
             dist_est = math.exp(total_log) * base_speed
-            abs_err = abs(dist_est - distance)
+            err = dist_est - distance
             vec = (x0,) + ha.vec + hb.vec
-            sols.append(Solution(vec, rel_err, abs_err, ha.nz + hb.nz, ha.s + hb.s))
+            sols.append(Solution(vec, rel_err, err, ha.nz + hb.nz, ha.s + hb.s))
     sol_map = {}
     for s in sols:
         if s.vec not in sol_map or s.rel_err < sol_map[s.vec].rel_err:
             sol_map[s.vec] = s
-    return sorted(sol_map.values(), key=lambda s: s.key())[: top_n]
+    return sorted(sol_map.values(), key=lambda s: s.key(sort_priority))[: top_n]
 
 def _labels(coefs: Sequence[float]) -> List[str]:
     if list(coefs) == DEFAULT_COEFS:
@@ -104,7 +117,7 @@ def _col_w(sols: List[Solution], labels: List[str]) -> int:
 
 def _header(labels: List[str], w: int) -> str:
     cols = " ".join(l.rjust(w) for l in labels)
-    return f"{cols} | multiplier |   distance  | abs_error | rel_error"
+    return f"{cols} | multiplier |   distance  |   error | rel_error"
 
 
 def _row(sol: Solution, coefs: Sequence[float], w: int) -> str:
@@ -113,10 +126,11 @@ def _row(sol: Solution, coefs: Sequence[float], w: int) -> str:
     dist_est = multiplier * BASE_SPEED
     return (
         f"{exps} | {multiplier:10.2f} | {dist_est:11.5g} | "
-        f"{sol.abs_err:+7.0f}px | {sol.rel_err:9.0e}"
+        f"{sol.signed_err:+7.0f}px | {sol.rel_err:9.0e}"
     )
 
 
+# Add to _parser()
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("distance", type=float)
@@ -124,13 +138,27 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--tol", "-t", type=float, dest="rel_tol", default=5e-3)
     p.add_argument("--top-n", "-n", type=int, default=DEFAULT_TOP_N)
     p.add_argument("--uncapped", "-u", type=int, nargs="*", default=[])
+    p.add_argument(
+        "--sort", type=str, default="-nz_other,sum_other,rel_err",
+        help="Sort priority, comma-separated. Use -field for descending. Supported: nz_other, sum_other, rel_err"
+    )
     return p
 
 def _run_cli(argv: List[str] | None = None) -> None:
     args = _parser().parse_args(argv)
+    sort_priority = [s.strip() for s in args.sort.split(",") if s.strip()]
     abs_tol = args.rel_tol * args.distance
     start = time.perf_counter()
-    sols = find_sparse_solutions(coefs=args.coefs, distance=args.distance, base_speed=BASE_SPEED, rel_tol=args.rel_tol, prod_cap=PROD_CAP, top_n=args.top_n, uncapped_indices=args.uncapped)
+    sols = find_sparse_solutions(
+        coefs=args.coefs,
+        distance=args.distance,
+        base_speed=BASE_SPEED,
+        rel_tol=args.rel_tol,
+        prod_cap=PROD_CAP,
+        top_n=args.top_n,
+        uncapped_indices=args.uncapped,
+        sort_priority=sort_priority,
+    )
     ms = (time.perf_counter() - start) * 1_000
     if not sols:
         print("No solution found.")
