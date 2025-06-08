@@ -104,12 +104,18 @@ def _col_w(sols: List[Solution], labels: List[str]) -> int:
 
 def _header(labels: List[str], w: int) -> str:
     cols = " ".join(l.rjust(w) for l in labels)
-    return f"{cols} |   distance  | abs_error | rel_error"
+    return f"{cols} | multiplier |   distance  | abs_error | rel_error"
+
 
 def _row(sol: Solution, coefs: Sequence[float], w: int) -> str:
     exps = " ".join(f"{x:>{w}d}" if x else " " * w for x in sol.vec)
-    dist_est = math.prod(a ** x for a, x in zip(coefs, sol.vec)) * BASE_SPEED
-    return f"{exps} | {dist_est:11.5g} | {sol.abs_err:9.0f}px | {sol.rel_err:9.2e}"
+    multiplier = math.prod(a ** x for a, x in zip(coefs, sol.vec))
+    dist_est = multiplier * BASE_SPEED
+    return (
+        f"{exps} | {multiplier:10.2f} | {dist_est:11.5g} | "
+        f"{sol.abs_err:+7.0f}px | {sol.rel_err:9.0e}"
+    )
+
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
