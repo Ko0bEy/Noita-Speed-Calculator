@@ -38,18 +38,28 @@ angle_solver.exe 0 0 6400 15000 -t 0.02 --visualize --skip-speed-calc
 Prints the most accurate + fewest-projectile formations to hit `(6400, 15000)` from the origin.
 Also finds suitable speed modifier solutions, unless `--skip-speed-calc` is used.
 
-## Speed solver - PW Travel
+# speed\_calc.exe Usage
 
 ```
 speed_calc.exe DISTANCE [options]
 ```
 
-| Option / Flag      | Default                                             | Meaning                                                      |
-| ------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
-| `-c`, `--coefs`    | `[1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]` | Speed multipliers per modifier/perk                          |
-| `-t`, `--tol`      | `5e-3`                                              | Relative error tolerance                                     |
-| `-n`, `--top-n`    | `50`                                                | Number of solutions to print                                 |
-| `-u`, `--uncapped` | *(none)*                                            | Indices whose multipliers are **uncapped** (besides index 0) |
+| Option / Flag      | Default                                            | Meaning                                                                                                                                              |
+| ------------------ |----------------------------------------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-c`, `--coefs`    | `[1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]` | Speed multipliers per modifier/perk                                                                                                                  |
+| `-t`, `--tol`      | `5e-3`                                             | Relative error tolerance                                                                                                                             |
+| `-n`, `--top-n`    | `50`                                               | Number of solutions to print                                                                                                                         |
+| `-u`, `--uncapped` | *(none)*                                           | Indices whose multipliers are **uncapped** (besides index 0)                                                                                         |
+| `--sort`           | `nz,sum,rel_err,max_exp`                           | Solution sort priority (comma-separated). Supported: `nz`, `sum`, `rel_err`, `max_exp`. Use a minus (`-`) for descending (e.g. `--sort nz,rel_err`). |
+
+**Note:**
+
+* The `--sort` option allows partial override. If you specify e.g. `--sort max_exp`, the remaining default sort order (`nz`, `sum`, `rel_err`) is appended automatically.
+* Sorting priorities:
+    * `nz`: amount of non-zero entries
+    * `sum`: sum of non-`x[0]` entries
+    * `rel_err`: relative error
+    * `max_exp`: maximum exponent (probably `x[0]`'s exponent)
 
 ### Examples
 
