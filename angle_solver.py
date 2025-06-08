@@ -204,7 +204,8 @@ def _visualize_solution(
     if N > 0:
         label_proj(0, "1", "black")
         label_proj(N - 1, str(N), "black")
-        # Optional: label the closest one to target direction in blue, as in the original
+        (sol.left, str(sol.left + 1), "blue")
+
     plt.axis("equal")
     plt.xlabel("+X (right)")
     plt.ylabel("+Y (down)")
