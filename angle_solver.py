@@ -204,6 +204,10 @@ def _cli() -> None:
     parser.add_argument("-a", "--shot-angle", type=float, default=90.0, help="Shot centreline angle (deg, CW from +X)")
     parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100, help="Max projectiles to test")
     parser.add_argument("-t", "--tolerance", type=float, default=0.01, help="Angular tolerance (radians)")
+    parser.add_argument("-c", "--coefs", type=float, nargs="+", help="Override speed multipliers for speed_calc")
+    parser.add_argument("-u", "--uncapped", type=int, nargs="*",
+                        help="Indices whose multipliers are uncapped for speed_calc")
+
     parser.add_argument(
         "-p",
         "--pattern-options",
@@ -268,8 +272,14 @@ def _cli() -> None:
     exe_dir = os.path.dirname(sys.executable)
     speed_calc = os.path.join(exe_dir, "speed_calc.exe")
     print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
+    cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"]
+    if args.coefs:
+        cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
+    if args.uncapped:
+        cmd.extend(["--uncapped"] + [str(u) for u in args.uncapped])
+    print(f"\nRunning: {' '.join(os.path.basename(x) if i == 0 else x for i, x in enumerate(cmd))}")
     try:
-        subprocess.run([speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"], check=True)
+        subprocess.run(cmd, check=True)
     except FileNotFoundError:
         print("Error: speed_calc.exe not found in the same folder. Aborting.")
         sys.exit(1)
@@ -277,7 +287,7 @@ def _cli() -> None:
         print(f"Error: speed solver exited with status {exc.returncode}.")
         sys.exit(exc.returncode)
 
-    #import matplotlib.pyplot as plt
+
     plt.show()
     input("Press Enter to exit...")
 

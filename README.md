@@ -6,24 +6,32 @@ CLI tool to find builds for arbitrary teleports in **Noita**.
 
 ## Angle Solver: Arbitrary teleport
 
-```bash
+```
 angle_solver.exe x0 y0 x1 y1 [options]
 ```
 
 Also runs speed\_calc for the distance unless `--skip-speed-calc` is set.
 
-| option               | default | meaning                                                |
-| -------------------- | ------- | ------------------------------------------------------ |
-| `-a, --shot-angle °` | `90`    | base facing direction (0° = +X, clockwise)             |
-| `-n, --max-n`        | `100`   | upper limit for projectile count that will be searched |
-| `-t, --tolerance`    | `0.01`  | angular tolerance (radians)                            |
-| `--top`              | `3`     | how many rows to print per pattern degree              |
-| `--skip-speed-calc`  |         | do not run speed\_calc for the distance                |
-| `--visualize`        |         | show projectile pattern plot (with matplotlib)         |
+| Option/Flag               | Default             | Meaning                                                                                    |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| `x0`                      | (required)          | Shooter X coordinate (float)                                                               |
+| `y0`                      | (required)          | Shooter Y coordinate (float)                                                               |
+| `x1`                      | (required)          | Target X coordinate (float)                                                                |
+| `y1`                      | (required)          | Target Y coordinate (float)                                                                |
+| `-a`, `--shot-angle`      | `90.0`              | Shot centreline angle in degrees (CW from +X axis)                                         |
+| `-n`, `--max-n`           | `100`               | Max projectiles to test                                                                    |
+| `-t`, `--tolerance`       | `0.01`              | Angular tolerance in radians (will be converted to degrees for internal calculation)       |
+| `-p`, `--pattern-options` | `5 20 30 45 90 180` | Comma/space-separated list of pattern degrees to test (must be integers between 1 and 180) |
+| `-c`, `--coefs`           | (see speed\_calc)   | Override speed multipliers for speed\_calc (forwarded to speed\_calc)                      |
+| `-u`, `--uncapped`        |                     | Indices whose multipliers are uncapped (forwarded to speed\_calc)                          |
+| `--top`                   | `3`                 | How many solutions to show per pattern degree                                              |
+| `--skip-speed-calc`       |                     | Do not run speed\_calc for the distance                                                    |
+| `--visualize`             |                     | Show projectile pattern plot with matplotlib                                               |
+| `-h`, `--help`            |                     | Show help message and exit                                                                 |
 
 ### Example
 
-```bash
+```
 angle_solver.exe 0 0 6400 15000 -t 0.02 --visualize --skip-speed-calc
 ```
 
@@ -32,29 +40,27 @@ Also finds suitable speed modifier solutions, unless `--skip-speed-calc` is used
 
 ## Speed solver - PW Travel
 
-```bash
+```
 speed_calc.exe DISTANCE [options]
 ```
 
-| option           | default  | meaning                                                |
-| ---------------- | -------- | ------------------------------------------------------ |
-| `-c, --coefs`    | see code | speed multipliers per modifier / perk                  |
-| `-t, --tol`      | `5e-3`   | relative error tolerance                               |
-| `-n, --top-n`    | `50`     | number of solutions to print                           |
-| `-u, --uncapped` |          | indices whose multipliers are **uncapped** (besides 0) |
+| Option / Flag      | Default                                             | Meaning                                                      |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
+| `-c`, `--coefs`    | `[1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]` | Speed multipliers per modifier/perk                          |
+| `-t`, `--tol`      | `5e-3`                                              | Relative error tolerance                                     |
+| `-n`, `--top-n`    | `50`                                                | Number of solutions to print                                 |
+| `-u`, `--uncapped` | *(none)*                                            | Indices whose multipliers are **uncapped** (besides index 0) |
 
 ### Examples
 
-```bash
-# Closest match for 12 000 px flight-path
-speed_calc.exe 12000
-
-# Same, but allow multiplier index 2 to exceed the 20× cap
-speed_calc.exe 12000 -u 2
 ```
+# Closest match for 1 PW (35840px)
+speed_calc.exe 35840
 
-Both commands print the top solutions in `nz_other / sum_other / x0 / rel_err` order.
+# Same, but only use heavy shot and speed up. note that the first coef is always considered uncapped.
+speed_calc.exe 35840 -c 1.2 0.3 2.5
+```
 
 ---
 
-\*All CLI flags have `--help`.
+\_All CLI flags have \`--help
