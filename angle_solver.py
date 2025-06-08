@@ -104,40 +104,67 @@ def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
     return grouped
 
 def _visualize_solution(
-    p1: Point, p2: Point, shot_angle: float, sol: Solution, background_image: Optional[str] = None
+    p1: Point, p2: Point, shot_angle: float, sol: Solution
 ) -> None:
     import matplotlib.pyplot as plt
     import numpy as np
-    import matplotlib.image as mpimg
+    from matplotlib.ticker import ScalarFormatter
+
     center_x, center_y = p1.x, p1.y
     dist = _distance(p1, p2)
-    angles = []
     if sol.total == 1:
         angles = [shot_angle]
     else:
         start = shot_angle - sol.pattern_degree
         step = _step(sol.pattern_degree, sol.total)
         angles = [_angle_normalise(start + i * step) for i in range(sol.total)]
-    proj_x = []
-    proj_y = []
-    for ang in angles:
-        rad = np.deg2rad(-ang)
-        px = center_x + dist * np.cos(rad)
-        py = center_y - dist * np.sin(rad)
-        proj_x.append(px)
-        proj_y.append(py)
+    proj_x = [center_x + dist * np.cos(np.deg2rad(-a)) for a in angles]
+    proj_y = [center_y - dist * np.sin(np.deg2rad(-a)) for a in angles]
+
+    # Find the projectile closest to the target direction
+    target_angle = _target_angle(p1, p2)
+    errors = [abs(_angle_difference(a, target_angle)) for a in angles]
+    best_idx = int(np.argmin(errors))
+
     plt.figure(figsize=(8, 8))
     ax = plt.gca()
-    if background_image is not None:
-        img = mpimg.imread(background_image)
-        img_extent = [0, img.shape[1], 0, img.shape[0]]
-        ax.imshow(img, extent=img_extent, origin='upper')
-    plt.scatter([center_x], [center_y], c='blue', s=100, label='Player')
-    plt.scatter([p2.x], [p2.y], c='red', marker='X', s=120, label='Target')
+    plt.scatter(center_x, center_y, c='blue', s=100, label='Player')
+    plt.scatter(p2.x, p2.y, c='red', marker='X', s=120, label='Target')
     plt.scatter(proj_x, proj_y, c='green', s=80, marker='*', label='Projectiles')
     for x, y in zip(proj_x, proj_y):
         plt.plot([center_x, x], [center_y, y], c='gray', lw=1, ls='--')
     plt.plot([center_x, p2.x], [center_y, p2.y], c='red', lw=2, label='Target Direction')
+
+    # Add labels, placed outward in data coordinates
+    N = len(proj_x)
+    offset = max(dist * 0.04, 25)
+
+    def label_proj(idx, text, color):
+        dx = proj_x[idx] - center_x
+        dy = proj_y[idx] - center_y
+        norm = np.hypot(dx, dy)
+        if norm == 0:
+            lx, ly = proj_x[idx] + offset, proj_y[idx] + offset
+        else:
+            lx = proj_x[idx] + (dx / norm) * offset
+            ly = proj_y[idx] + (dy / norm) * offset
+        ax.annotate(
+            text,
+            (lx, ly),
+            ha='left' if dx >= 0 else 'right',
+            va='bottom' if dy >= 0 else 'top',
+            color=color,
+            fontsize=10,
+            weight='bold',
+            bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.8, lw=0)
+        )
+
+    if N > 0:
+        label_proj(0, "1", 'black')
+        label_proj(N - 1, str(N), 'black')
+        if best_idx != 0 and best_idx != N - 1:
+            label_proj(best_idx, str(best_idx + 1), 'blue')
+
     plt.axis('equal')
     plt.xlabel('+X (right)')
     plt.ylabel('+Y (down)')
@@ -145,8 +172,15 @@ def _visualize_solution(
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.gca().invert_yaxis()
+    ax.invert_yaxis()
+    fmt = ScalarFormatter(useOffset=False)
+    fmt.set_scientific(False)
+    ax.xaxis.set_major_formatter(fmt)
+    ax.yaxis.set_major_formatter(fmt)
     plt.show()
+
+
+
 
 def _parse_pattern_list(value: str) -> Tuple[int, ...]:
     if not value:
@@ -181,7 +215,6 @@ def _cli() -> None:
         help="Do not invoke external speed calculator",
     )
     parser.add_argument("--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
-    parser.add_argument("--background-image", type=str, default=None, help="Path to a background image to show behind the visualization (optional)")
     parser.add_argument("--top", type=int, default=3, help="How many solutions to show per category")
     args = parser.parse_args()
     p1 = Point(args.x0, args.y0)
@@ -199,7 +232,7 @@ def _cli() -> None:
     tgt = _target_angle(p1, p2)
     print(f"Target angle  : {tgt:.6f}° (clockwise)")
     print(f"Distance      : {dist:.6f}")
-    print(f"Abs tolerance : {angle_tol_deg:.6f}°\n")
+    print(f"Abs tolerance : {angle_tol_deg:.6f}° ({math.sin(math.radians(angle_tol_deg)) * dist:.0f}px) \n")
     grouped = _group_by_pattern(eff)
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
@@ -223,10 +256,10 @@ def _cli() -> None:
         print(
             f"Pattern Degree: {best.pattern_degree}, "
             f"L: {best.left}, R: {best.right}, N: {best.total}, "
-            f"Error: {best.error_deg:.6f}°"
+            f"Error: {best.error_deg:.6f}° ({math.sin(math.radians(best.error_deg)) * dist:.0f}px)"
         )
         if args.visualize:
-            _visualize_solution(p1, p2, args.shot_angle, best, background_image=args.background_image)
+            _visualize_solution(p1, p2, args.shot_angle, best)
     if args.skip_speed_calc:
         print("\nSpeed calculation skipped (--skip-speed-calc specified).")
         return
