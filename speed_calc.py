@@ -1,4 +1,3 @@
-from __future__ import annotations
 import argparse
 import bisect
 import itertools
@@ -6,6 +5,7 @@ import math
 import time
 from dataclasses import dataclass
 from typing import List, Sequence, Tuple, Set, Optional, Dict, Any
+from functools import lru_cache
 
 DEFAULT_COEFS: List[float] = [1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]
 BASE_SPEED: float = 7.92
@@ -13,6 +13,10 @@ PROD_CAP: float = 20.0
 DEFAULT_TOP_N: int = 50
 LABELS: List[str] = ["flyup", "heavy", "accel", "phasing", "explo", "decel", "slither", "speed", "light"]
 DEFAULT_SORTING_PRIORITY: Tuple[str, ...] = ('nz', 'sum', 'rel_err', 'max_exp')
+
+@lru_cache(maxsize=None)
+def _cached_log(x: float) -> float:
+    return math.log(x)
 
 @dataclass(slots=True, frozen=True)
 class _HalfVector:
@@ -55,7 +59,7 @@ def _upper_bounds(
     prod_cap: float,
     x0_margin: int,
 ) -> List[int]:
-    ln = math.log
+    ln = _cached_log
     bounds = [int(math.ceil(log_c_hi / ln(a[0])) + x0_margin)]
     for i, ai in enumerate(a[1:], 1):
         if i in uncapped or ai <= 1.0:
@@ -107,10 +111,10 @@ def find_sparse_solutions(
     if any(i < 0 or i >= len(coefs) for i in uncapped):
         raise ValueError
     target_c = distance / base_speed
-    log_c = math.log(target_c)
-    log_c_hi = math.log(target_c * (1 + rel_tol))
-    log_cap = math.log(prod_cap)
-    log_a = [math.log(a) for a in coefs]
+    log_c = _cached_log(target_c)
+    log_c_hi = _cached_log(target_c * (1 + rel_tol))
+    log_cap = _cached_log(prod_cap)
+    log_a = [_cached_log(a) for a in coefs]
     ub = _upper_bounds(coefs, uncapped, log_c_hi, prod_cap, x0_margin)
     n_other = len(coefs) - 1
     idx_A, idx_B = _split(n_other)
@@ -170,7 +174,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("distance", type=float)
     p.add_argument("--coefs", "-c", type=float, nargs="+", default=DEFAULT_COEFS)
     p.add_argument("--tol", "-t", type=float, dest="rel_tol", default=5e-3)
-    p.add_argument("--top-n", "-n", type=int, default=DEFAULT_TOP_N)
+    p.add_argument("--top-n", type=int, default=DEFAULT_TOP_N)
     p.add_argument("--uncapped", "-u", type=int, nargs="*", default=[])
     p.add_argument(
         "--sort", type=str, default="nz,sum,rel_err,max_exp",

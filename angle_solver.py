@@ -8,11 +8,14 @@ import sys
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple, Optional
 import matplotlib.pyplot as plt
+from functools import lru_cache
+import heapq
 
-
+@lru_cache(maxsize=None)
 def _angle_normalise(angle: float) -> float:
     return angle % 360.0
 
+@lru_cache(maxsize=None)
 def _angle_difference(a: float, b: float) -> float:
     diff = (a - b + 180.0) % 360.0 - 180.0
     return abs(diff)
@@ -60,7 +63,7 @@ def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -
             cand = Solution(pattern_degree, L, total - L - 1, total, err)
             if best is None or err < best.error_deg - 1e-12:
                 best = cand
-    return best  # type: ignore (always set)
+    return best
 
 def _gcd3(a: int, b: int, c: int) -> int:
     return math.gcd(a, math.gcd(b, c))
@@ -179,15 +182,11 @@ def _visualize_solution(
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    ax.invert_yaxis()
+    ax.invert_yaxis() # Y-axis increases downwards in-game
     fmt = ScalarFormatter(useOffset=False)
     fmt.set_scientific(False)
     ax.xaxis.set_major_formatter(fmt)
     ax.yaxis.set_major_formatter(fmt)
-    #plt.show(block=False)
-    #plt.pause(0.3)
-
-
 
 
 def _parse_pattern_list(value: str) -> Tuple[int, ...]:
@@ -208,16 +207,16 @@ def _cli() -> None:
     parser.add_argument("x1", type=float, help="Target X coordinate")
     parser.add_argument("y1", type=float, help="Target Y coordinate")
     parser.add_argument("-a", "--shot-angle", type=float, default=90.0, help="Shot centreline angle (deg, CW from +X)")
-    parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100, help="Max projectiles to test")
+    parser.add_argument("-n", "--max-n", type=int, default=100, help="Max projectiles to test")
     parser.add_argument(
         "-t", "--tolerance",
         type=float,
         default=0.01,
-        help="Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1% of distance)"
+        help="Max allowed perpendicular error as a fraction of the distance"
     )
     parser.add_argument("-c", "--coefs", type=float, nargs="+", help="Override speed multipliers for speed_calc")
     parser.add_argument("-u", "--uncapped", type=int, nargs="*",
-                        help="Indices whose multipliers are uncapped for speed_calc")
+                        help="Indices whose multipliers are uncapped for speed_calc", default=[])
 
     parser.add_argument(
         "-p", "--pattern-options",
@@ -231,16 +230,18 @@ def _cli() -> None:
         help="Do not invoke external speed calculator",
     )
     parser.add_argument("-v","--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
-    parser.add_argument("--top", type=int, default=3, help="How many solutions to show per category")
+    parser.add_argument("--show-few", type=int, default=3, help="How many small solutions to show per category")
+    parser.add_argument("--show-accurate", type=int, default=3, help="How many accurate solutions to show per category")
     parser.add_argument(
-        "--sort-priority",
+        "--sort",
         type=str,
         default=None,
         help="Comma-separated sort priorities to pass to speed_calc (e.g. rel_err,nz,sum). Supported: nz, sum, rel_err, max_exp."
     )
+    parser.add_argument("--top-n", type=int, default=25)
     args = parser.parse_args()
 
-    if args.max_N < 2:
+    if args.max_n < 2:
         parser.error("--max-n must be at least 2")
 
     pattern_degrees = []
@@ -272,7 +273,7 @@ def _cli() -> None:
         p2,
         shot_angle=args.shot_angle,
         pattern_options=args.pattern_options,
-        max_n=args.max_N,
+        max_n=args.max_n,
         tolerance=args.tolerance,  # now as fraction
         distance=dist,  # new arg
     )
@@ -284,15 +285,15 @@ def _cli() -> None:
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
         group = grouped[pd]
-        most_accurate = sorted(group, key=lambda s: s.error_deg)[: args.top]
-        fewest_projectiles = sorted(group, key=lambda s: s.total)[: args.top]
+        most_accurate = heapq.nsmallest(args.show_accurate, group, key=lambda s: s.error_deg)
+        fewest_projectiles = heapq.nsmallest(args.show_few, group, key=lambda s: s.total)
         print(f"\nPattern Degree: {pd}")
-        print(f"  Most Accurate (top {args.top}):")
+        print(f"  Most Accurate (top {args.show_accurate}):")
         print("    L | R  | N  | Error (deg)")
         print("   ---|----|----|------------")
         for sol in most_accurate:
             print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
-        print(f"  Fewest Projectiles (top {args.top}):")
+        print(f"  Fewest Projectiles (top {args.show_few}):")
         print("    L | R  | N  | Error (deg)")
         print("   ---|----|----|------------")
         for sol in fewest_projectiles:
@@ -318,8 +319,10 @@ def _cli() -> None:
             cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
         if args.uncapped:
             cmd.extend(["--uncapped"] + [str(u) for u in args.uncapped])
-        if args.sort_priority:
-            cmd.extend(["--sort", args.sort_priority])
+        if args.sort:
+            cmd.extend(["--sort", args.sort])
+        if args.top_n:
+            cmd.extend(["--top-n", str(args.top_n)])
         print(f"\nRunning: {' '.join(os.path.basename(x) if i == 0 else x for i, x in enumerate(cmd))}")
         try:
             subprocess.run(cmd, check=True)

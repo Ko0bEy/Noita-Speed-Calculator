@@ -22,8 +22,8 @@ angle_solver.exe 0 0 1000 500 -p 30 90
 # Custom pattern degrees (comma)
 angle_solver.exe 0 0 1000 500 -p 10,45,180
 
-# Top results increased
-angle_solver.exe 0 0 400 1200 --top 5
+# Top results increased or reduced
+angle_solver.exe 0 0 400 1200 --top-n 5 --show-accurate 10 --show-few 1 -v
 
 # Skip speed_calc
 angle_solver.exe 0 0 6400 3200 --skip-speed-calc
@@ -32,13 +32,13 @@ angle_solver.exe 0 0 6400 3200 --skip-speed-calc
 angle_solver.exe 0 0 1000 1000 --visualize
 
 # All together: pattern, angle, N, tolerance, top
-angle_solver.exe 0 0 1000 500 -a 45 -p 20,90 -n 10 -t 0.01 --top 2
+angle_solver.exe 0 0 1000 500 -a 45 -p 20,90 -n 10 -t 0.01 --top-n 2 --show-accurate 6 --show-few 6 -v
 
 # Forward custom coefs to speed_calc
 angle_solver.exe 0 0 5000 5000 -c 1.2 0.3 2.5
 
 # Forward uncapped indices
-angle_solver.exe 0 0 1000 3000 -u 1 2
+angle_solver.exe 0 0 1000 3000 -c 1.2 1.75 0.3 1.68 -u 1
 
 # Both coefs and uncapped
 angle_solver.exe 0 0 8000 4000 -c 1.2 1.75 0.75 -u 1

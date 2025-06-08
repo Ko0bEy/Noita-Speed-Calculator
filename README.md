@@ -12,27 +12,31 @@ angle_solver.exe x0 y0 x1 y1 [options]
 
 Also runs speed\_calc for the distance unless `--skip-speed-calc` is set.
 
-| Option/Flag               | Default             | Meaning                                                                                     |
-|---------------------------| ------------------- |---------------------------------------------------------------------------------------------|
-| `x0`                      | (required)          | Shooter X coordinate (float)                                                                |
-| `y0`                      | (required)          | Shooter Y coordinate (float)                                                                |
-| `x1`                      | (required)          | Target X coordinate (float)                                                                 |
-| `y1`                      | (required)          | Target Y coordinate (float)                                                                 |
-| `-a`, `--shot-angle`      | `90.0`              | Shot centreline angle in degrees (CW from +X axis)                                          |
-| `-n`, `--max-n`           | `100`               | Max projectiles to test                                                                     |
-| `-t`, `--tolerance`       | `0.01`              | Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1%)             |
-| `-p`, `--pattern-options` | `5 20 30 45 90 180` | Comma/space-separated list of pattern degrees to test (integers between 1 and 180)          |
-| `--top`                   | `3`                 | How many solutions to show per pattern degree                                               |
-| `-v`, `--visualize`       |                     | Show projectile pattern plot with matplotlib                                                |
-| `--skip-speed-calc`       |                     | Do not run speed_calc for the distance                                                      |
+| Option/Flag               | Default             | Meaning                                                                            |
+|---------------------------| ------------------- |------------------------------------------------------------------------------------|
+| `x0`                      | (required)          | Shooter X coordinate (float)                                                       |
+| `y0`                      | (required)          | Shooter Y coordinate (float)                                                       |
+| `x1`                      | (required)          | Target X coordinate (float)                                                        |
+| `y1`                      | (required)          | Target Y coordinate (float)                                                        |
+| `-a`, `--shot-angle`      | `90.0`              | Shot centreline angle in degrees (CW from +X axis)                                 |
+| `-n`, `--max-n`           | `100`               | Max projectiles to test                                                            |
+| `-t`, `--tolerance`       | `0.01`              | Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1%)    |
+| `-p`, `--pattern-options` | `5 20 30 45 90 180` | Comma/space-separated list of pattern degrees to test (integers between 1 and 180) |
+| `--show-few`              | `3`                 | How many small solutions to show per pattern degree                                |
+| `--show-accurate`         | `3`                 | How many accurate solutions to show per pattern degree                             |
+| `-v`, `--visualize`       |                     | Show projectile pattern plot with matplotlib                                       |
+| `--skip-speed-calc`       |                     | Do not run speed_calc for the distance                                             |
 
 **Options passed on to speed_calc:**
 
-| Option/Flag               | Default             | Meaning                                                     |
-|---------------------------| ------------------- |-------------------------------------------------------------|
-| `-c`, `--coefs`           | `[1.2 ... 7.5]` (see speed_calc)  | Override speed multipliers for speed_calc                   |
-| `-u`, `--uncapped`        |                                   | Indices whose multipliers are **uncapped** (besides index 0)    |
-| `--sort-priority`         | `nz,sum,rel_err,max_exp`           | Sort priorities for speed_calc solutions (comma-separated). |
+| Option/Flag        | Default                          | Meaning                                                     |
+|--------------------|----------------------------------|-------------------------------------------------------------|
+| `-c`, `--coefs`    | `[1.2 ... 7.5]` (see speed_calc) | Override speed multipliers for speed_calc                   |
+| `-u`, `--uncapped` |                                  | Indices whose multipliers are **uncapped** (besides index 0)    |
+| `--sort`           | `nz,sum,rel_err,max_exp`         | Sort priorities for speed_calc solutions (comma-separated). |
+| `--top-n`          | `25`                             | Number of solutions to print                                                            |
+
+
 ### Example
 
 ```
@@ -49,10 +53,10 @@ speed_calc.exe DISTANCE [options]
 ```
 
 | Option / Flag      | Default                                             | Meaning                                                                                 |
-| ------------------ |-----------------------------------------------------|-----------------------------------------------------------------------------------------|
+|--------------------|-----------------------------------------------------|-----------------------------------------------------------------------------------------|
 | `-c`, `--coefs`    | `[1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]` | Speed multipliers per modifier/perk                                                     |
 | `-t`, `--tol`      | `5e-3`                                              | Relative error tolerance                                                                |
-| `-n`, `--top-n`    | `50`                                                | Number of solutions to print                                                            |
+| `--top-n`          | `50`                                                | Number of solutions to print                                                            |
 | `-u`, `--uncapped` | *(none)*                                            | Indices whose multipliers are **uncapped** (besides index 0)                            |
 | `--sort`           | `nz,sum,rel_err,max_exp`                            | Solution sort priority (comma-separated). Supported: `nz`, `sum`, `rel_err`, `max_exp`. |
 
