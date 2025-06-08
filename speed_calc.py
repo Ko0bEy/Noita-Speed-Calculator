@@ -7,17 +7,30 @@ from dataclasses import dataclass
 from typing import List, Sequence, Tuple, Set, Optional, Dict, Any
 from functools import lru_cache
 import matplotlib
-matplotlib.use('TkAgg')
+
+matplotlib.use("TkAgg")
 DEFAULT_COEFS: List[float] = [1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]
 BASE_SPEED: float = 7.92
 PROD_CAP: float = 20.0
 DEFAULT_TOP_N: int = 50
-LABELS: List[str] = ["flyup", "heavy", "accel", "phasing", "explo", "decel", "slither", "speed", "light"]
-DEFAULT_SORTING_PRIORITY: Tuple[str, ...] = ('nz', 'sum', 'rel_err', 'max_exp')
+LABELS: List[str] = [
+    "flyup",
+    "heavy",
+    "accel",
+    "phasing",
+    "explo",
+    "decel",
+    "slither",
+    "speed",
+    "light",
+]
+DEFAULT_SORTING_PRIORITY: Tuple[str, ...] = ("nz", "sum", "rel_err", "max_exp")
+
 
 @lru_cache(maxsize=None)
 def _cached_log(x: float) -> float:
     return math.log(x)
+
 
 @dataclass(slots=True, frozen=True)
 class _HalfVector:
@@ -26,6 +39,7 @@ class _HalfVector:
     nz: int
     s: int
     vec: Tuple[int, ...]
+
 
 @dataclass(slots=True)
 class Solution:
@@ -36,7 +50,14 @@ class Solution:
     sum: int
     max_exp: int
 
-    def __init__(self, vec: Tuple[int, ...], rel_err: float, signed_err: float, nz: int, sum_: int):
+    def __init__(
+        self,
+        vec: Tuple[int, ...],
+        rel_err: float,
+        signed_err: float,
+        nz: int,
+        sum_: int,
+    ):
         self.vec = vec
         self.rel_err = rel_err
         self.signed_err = signed_err
@@ -44,14 +65,17 @@ class Solution:
         self.sum = sum_
         self.max_exp = max(vec)
 
-    def key(self, sort_priority: Sequence[str] = DEFAULT_SORTING_PRIORITY) -> Tuple[Any, ...]:
+    def key(
+        self, sort_priority: Sequence[str] = DEFAULT_SORTING_PRIORITY
+    ) -> Tuple[Any, ...]:
         key_tuple: List[Any] = []
         for k in sort_priority:
             val = getattr(self, k)
-            if k == 'rel_err':
+            if k == "rel_err":
                 val = abs(val)
             key_tuple.append(val)
         return tuple(key_tuple)
+
 
 def _upper_bounds(
     a: Sequence[float],
@@ -69,6 +93,7 @@ def _upper_bounds(
             bounds.append(int(math.floor(math.log(prod_cap) / math.log(ai))))
     return bounds
 
+
 def _enumerate_half(
     idxs: List[int],
     ub: List[int],
@@ -81,12 +106,16 @@ def _enumerate_half(
         log_full = sum(x * log_a[i] for x, i in zip(xs, idxs))
         log_cap_sum = sum(x * log_a[i] for x, i in zip(xs, idxs) if i not in uncapped)
         if log_cap_sum < log_cap:
-            res.append(_HalfVector(log_cap_sum, log_full, sum(x > 0 for x in xs), sum(xs), xs))
+            res.append(
+                _HalfVector(log_cap_sum, log_full, sum(x > 0 for x in xs), sum(xs), xs)
+            )
     return res
+
 
 def _split(n: int) -> Tuple[List[int], List[int]]:
     mid = n // 2
     return list(range(1, 1 + mid)), list(range(1 + mid, 1 + n))
+
 
 def find_sparse_solutions(
     coefs: Sequence[float],
@@ -98,7 +127,7 @@ def find_sparse_solutions(
     top_n: int = DEFAULT_TOP_N,
     uncapped_indices: Optional[Sequence[int]] = None,
     x0_margin: int = 10,
-    sort_priority: Sequence[str] = DEFAULT_SORTING_PRIORITY
+    sort_priority: Sequence[str] = DEFAULT_SORTING_PRIORITY,
 ) -> List[Solution]:
     """
     Main function to find sparse solutions to the given distance and coefficients.
@@ -145,30 +174,35 @@ def find_sparse_solutions(
     for s in sols:
         if s.vec not in sol_map or s.rel_err < sol_map[s.vec].rel_err:
             sol_map[s.vec] = s
-    return sorted(sol_map.values(), key=lambda s: s.key(sort_priority))[: top_n]
+    return sorted(sol_map.values(), key=lambda s: s.key(sort_priority))[:top_n]
+
 
 def _labels(coefs: Sequence[float]) -> List[str]:
     if list(coefs) == DEFAULT_COEFS:
         return LABELS
     return [f"{a}" for a in coefs]
 
+
 def _col_w(sols: List[Solution], labels: List[str]) -> int:
     if not sols:
         return 4
     return max(4, len(str(max(max(s.vec) for s in sols))), max(len(l) for l in labels))
 
+
 def _header(labels: List[str], w: int) -> str:
     cols = " ".join(l.rjust(w) for l in labels)
     return f"{cols} | multiplier |   distance  |   error | rel_error"
 
+
 def _row(sol: Solution, coefs: Sequence[float], w: int) -> str:
     exps = " ".join(f"{x:>{w}d}" if x else " " * w for x in sol.vec)
-    multiplier = math.prod(a ** x for a, x in zip(coefs, sol.vec))
+    multiplier = math.prod(a**x for a, x in zip(coefs, sol.vec))
     dist_est = multiplier * BASE_SPEED
     return (
         f"{exps} | {multiplier:10.2f} | {dist_est:11.5g} | "
         f"{sol.signed_err:+7.0f}px | {sol.rel_err:9.0e}"
     )
+
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
@@ -178,7 +212,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--top-n", type=int, default=DEFAULT_TOP_N)
     p.add_argument("--uncapped", "-u", type=int, nargs="*", default=[])
     p.add_argument(
-        "--sort", type=str, default="nz,sum,rel_err,max_exp",
+        "--sort",
+        type=str,
+        default="nz,sum,rel_err,max_exp",
         help=(
             "Sort priority, comma-separated. Use -field for descending. non-provided are inferred from default."
             "Supported: nz, sum, rel_err, max_exp. "
@@ -186,6 +222,8 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     return p
+
+
 def _run_cli(argv: Optional[List[str]] = None) -> None:
     args = _parser().parse_args(argv)
     if args.distance <= 0:
@@ -198,7 +236,7 @@ def _run_cli(argv: Optional[List[str]] = None) -> None:
         print(f"invalid uncapped index, got: {args.uncapped=}")
     input_sort = [s.strip() for s in args.sort.split(",") if s.strip()]
     # infer rest from default ordering
-    all_fields = [field.lstrip('-') for field in input_sort]
+    all_fields = [field.lstrip("-") for field in input_sort]
     inferred = [s for s in DEFAULT_SORTING_PRIORITY if s not in all_fields]
     sort_priority = input_sort + inferred
     abs_tol = args.rel_tol * args.distance
@@ -227,6 +265,7 @@ def _run_cli(argv: Optional[List[str]] = None) -> None:
         print(_row(s, args.coefs, w))
     print(f"\n{len(sols)} solution(s) shown in {ms:.2f} ms")
     print("Best solution at the top!")
+
 
 if __name__ == "__main__":
     _run_cli()
