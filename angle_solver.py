@@ -7,6 +7,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple, Optional
+import matplotlib.pyplot as plt
+
 
 def _angle_normalise(angle: float) -> float:
     return angle % 360.0
@@ -106,7 +108,6 @@ def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
 def _visualize_solution(
     p1: Point, p2: Point, shot_angle: float, sol: Solution
 ) -> None:
-    import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.ticker import ScalarFormatter
 
@@ -177,7 +178,8 @@ def _visualize_solution(
     fmt.set_scientific(False)
     ax.xaxis.set_major_formatter(fmt)
     ax.yaxis.set_major_formatter(fmt)
-    plt.show()
+    #plt.show(block=False)
+    #plt.pause(0.3)
 
 
 
@@ -274,6 +276,10 @@ def _cli() -> None:
     except subprocess.CalledProcessError as exc:
         print(f"Error: speed solver exited with status {exc.returncode}.")
         sys.exit(exc.returncode)
+
+    #import matplotlib.pyplot as plt
+    plt.show()
+    input("Press Enter to exit...")
 
 if __name__ == "__main__":
     _cli()
