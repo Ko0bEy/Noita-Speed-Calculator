@@ -1,21 +1,3 @@
-"""Geometry‑based projectile pattern solver — duplicate‑aware, companion‑exe friendly
-
-Changes in this revision
-------------------------
-1. **Duplicate‑error pruning re‑implemented with GCD normalisation**
-   Identical patterns that differ only by a common integer scale factor
-   (e.g. `(L,R,N) = (2,6,10)` vs. `(1,3,5)`) are now detected by dividing
-   each triple by `gcd(L,R,N)` and keeping only the solution with the
-   *smallest* total projectile count.
-2. **Robust helper‑exe launch**
-   `speed_calc.exe` is looked up **relative to** the folder that contains
-   *this* executable, so users can simply unzip both `.exe` files into the
-   same directory and run.
-3. **Minor clean‑ups**
-   * Added `_gcd3` helper.
-   * Docstrings clarified.
-   * Error on missing `speed_calc.exe` is now fatal (non‑zero exit).
-"""
 from __future__ import annotations
 
 import argparse
@@ -24,77 +6,43 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
-
-# -----------------------------------------------------------------------------
-# Geometry helpers
-# -----------------------------------------------------------------------------
+from typing import Dict, Iterable, List, Tuple, Optional
 
 def _angle_normalise(angle: float) -> float:
-    """Return *angle* mapped to ``[0, 360)`` (degrees)."""
     return angle % 360.0
 
-
 def _angle_difference(a: float, b: float) -> float:
-    """Absolute smallest difference |a − b| along the unit circle (degrees)."""
     diff = (a - b + 180.0) % 360.0 - 180.0
     return abs(diff)
 
-
 def _distance(p1: "Point", p2: "Point") -> float:
-    dx = p2.x - p1.x
-    dy = p2.y - p1.y
-    return math.hypot(dx, dy)
-
+    return math.hypot(p2.x - p1.x, p2.y - p1.y)
 
 @dataclass(frozen=True)
 class Point:
     x: float
     y: float
 
-
 @dataclass
 class Solution:
-    pattern_degree: int  # half‑angle for the pattern (180 ⇒ full circle)
-    left: int            # index of the chosen projectile on the left
-    right: int           # symmetrical partner (redundant, kept for CLI)
-    total: int           # total projectile count (== N)
-    error_deg: float     # angular error to the target (degrees)
-
+    pattern_degree: int
+    left: int
+    right: int
+    total: int
+    error_deg: float
     def score(self) -> Tuple[int, float]:
-        """Lower tuple ⇒ better solution (fewest projectiles, then accuracy)."""
         return self.total, self.error_deg
 
-# -----------------------------------------------------------------------------
-# Solver core
-# -----------------------------------------------------------------------------
-
 def _target_angle(p1: Point, p2: Point) -> float:
-    """Clock‑wise bearing (°) from *p1* to *p2*, with 0° pointing to +X."""
-    dx = p2.x - p1.x
-    dy = p2.y - p1.y
-    ccw = math.degrees(math.atan2(-dy, dx))
-    cw = (360.0 - ccw) % 360.0
-    return cw
-
+    return (360.0 - math.degrees(math.atan2(-(p2.y - p1.y), p2.x - p1.x))) % 360.0
 
 def _step(pattern_degree: int, total: int) -> float:
-    """Angular spacing Δ between consecutive projectiles (degrees)."""
-    if pattern_degree == 180:
-        # Full‑circle pattern – evenly distributed
-        return 360.0 / total
-    # Fan pattern – span = 2·pattern_degree
-    return (2.0 * pattern_degree) / (total - 1)
-
+    return 360.0 / total if pattern_degree == 180 else (2.0 * pattern_degree) / (total - 1)
 
 def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -> Solution:
-    """For a *fixed* pattern configuration, choose *L* that minimises error."""
-    start = shot_angle - pattern_degree  # left‑most ray angle
+    start = shot_angle - pattern_degree
     delta = _step(pattern_degree, total)
-
-    # Index that *would* hit the target if spacing were perfect
     ideal = round((_angle_normalise(target - start)) / delta)
-
     best: Solution | None = None
     for L in (ideal - 1, ideal, ideal + 1):
         if 0 <= L < total:
@@ -103,8 +51,6 @@ def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -
             cand = Solution(pattern_degree, L, total - L - 1, total, err)
             if best is None or err < best.error_deg - 1e-12:
                 best = cand
-
-    # Fallback – exhaustive (edge‑case safety)
     if best is None:
         for L in range(total):
             theta_L = _angle_normalise(start + L * delta)
@@ -112,68 +58,44 @@ def _best_L(pattern_degree: int, shot_angle: float, total: int, target: float) -
             cand = Solution(pattern_degree, L, total - L - 1, total, err)
             if best is None or err < best.error_deg - 1e-12:
                 best = cand
-    assert best is not None
-    return best
-
-# -----------------------------------------------------------------------------
-# Duplicate‑pruning helpers
-# -----------------------------------------------------------------------------
+    return best  # type: ignore (always set)
 
 def _gcd3(a: int, b: int, c: int) -> int:
-    """Greatest common divisor of three non‑negative integers."""
     return math.gcd(a, math.gcd(b, c))
 
-
-def _normalised_key(sol: Solution) -> Tuple[int, int, int, int]:
-    """Return a hashable key that is invariant under integer scaling."""
+def _normalised_key(sol: Solution) -> Tuple[int, ...]:
+    if sol.left == 0:
+        return (sol.pattern_degree, 0)
     g = _gcd3(sol.left, sol.right, sol.total)
-    return (
-        sol.pattern_degree,
-        sol.left // g,
-        sol.right // g,
-        sol.total // g,
-    )
-
-# -----------------------------------------------------------------------------
-# Public API
-# -----------------------------------------------------------------------------
+    return (sol.pattern_degree, sol.left // g, sol.right // g, sol.total // g)
 
 def find_efficient_solutions(
     p1: Point,
     p2: Point,
     *,
     shot_angle: float,
-    pattern_options: Iterable[int] = (5, 20, 45, 90, 180),
+    pattern_options: Iterable[int] = (5, 20, 30, 45, 90, 180),
     max_N: int = 100,
     tolerance_deg: float = 1e-3,
 ) -> List[Solution]:
-    """Return all solutions whose error ≤ *tolerance_deg*,
-    deduplicated by GCD normalisation.
-    """
     tgt = _target_angle(p1, p2)
-
-    keep: Dict[Tuple[int, int, int, int], Solution] = {}
-
+    keep: Dict[Tuple[int, ...], Solution] = {}
     for pd in pattern_options:
         for N in range(2, max_N + 1):
             sol = _best_L(pd, shot_angle, N, tgt)
-            if sol.error_deg > tolerance_deg:
-                # Continue scanning – a later N could still meet tolerance
+            if pd == 30 and not (sol.left > 12 or sol.right > 12):
                 continue
-
+            if sol.error_deg > tolerance_deg:
+                continue
             key = _normalised_key(sol)
             prev = keep.get(key)
-            if prev is None or sol.total < prev.total or (
-                sol.total == prev.total and sol.error_deg < prev.error_deg - 1e-12
+            if (
+                prev is None
+                or sol.total < prev.total
+                or (sol.total == prev.total and sol.error_deg < prev.error_deg - 1e-12)
             ):
                 keep[key] = sol
-
-    # Sort by (pattern_degree, error, total)
     return sorted(keep.values(), key=lambda s: (s.pattern_degree, s.error_deg, s.total))
-
-# -----------------------------------------------------------------------------
-# Helpers for CLI presentation
-# -----------------------------------------------------------------------------
 
 def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
     grouped: Dict[int, List[Solution]] = {}
@@ -181,68 +103,120 @@ def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
         grouped.setdefault(sol.pattern_degree, []).append(sol)
     return grouped
 
-# -----------------------------------------------------------------------------
-# CLI logic
-# -----------------------------------------------------------------------------
+def _visualize_solution(
+    p1: Point, p2: Point, shot_angle: float, sol: Solution, background_image: Optional[str] = None
+) -> None:
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import matplotlib.image as mpimg
+    center_x, center_y = p1.x, p1.y
+    dist = _distance(p1, p2)
+    angles = []
+    if sol.total == 1:
+        angles = [shot_angle]
+    else:
+        start = shot_angle - sol.pattern_degree
+        step = _step(sol.pattern_degree, sol.total)
+        angles = [_angle_normalise(start + i * step) for i in range(sol.total)]
+    proj_x = []
+    proj_y = []
+    for ang in angles:
+        rad = np.deg2rad(-ang)
+        px = center_x + dist * np.cos(rad)
+        py = center_y - dist * np.sin(rad)
+        proj_x.append(px)
+        proj_y.append(py)
+    plt.figure(figsize=(8, 8))
+    ax = plt.gca()
+    if background_image is not None:
+        img = mpimg.imread(background_image)
+        img_extent = [0, img.shape[1], 0, img.shape[0]]
+        ax.imshow(img, extent=img_extent, origin='upper')
+    plt.scatter([center_x], [center_y], c='blue', s=100, label='Player')
+    plt.scatter([p2.x], [p2.y], c='red', marker='X', s=120, label='Target')
+    plt.scatter(proj_x, proj_y, c='green', s=80, marker='*', label='Projectiles')
+    for x, y in zip(proj_x, proj_y):
+        plt.plot([center_x, x], [center_y, y], c='gray', lw=1, ls='--')
+    plt.plot([center_x, p2.x], [center_y, p2.y], c='red', lw=2, label='Target Direction')
+    plt.axis('equal')
+    plt.xlabel('+X (right)')
+    plt.ylabel('+Y (down)')
+    plt.title(f'Projectile Pattern Visualization\nPattern Degree: {sol.pattern_degree}°')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.gca().invert_yaxis()
+    plt.show()
+
+def _parse_pattern_list(value: str) -> Tuple[int, ...]:
+    if not value:
+        raise argparse.ArgumentTypeError("pattern list must not be empty")
+    try:
+        parts = [int(part) for part in value.replace(",", " ").split() if part]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("pattern degrees must be integers") from exc
+    if any(p <= 0 or p > 180 for p in parts):
+        raise argparse.ArgumentTypeError("pattern degrees must be in the range 1‑180")
+    return tuple(parts)
 
 def _cli() -> None:
-    parser = argparse.ArgumentParser(
-        description="Projectile pattern optimiser – duplicate‑aware GCD version"
+    parser = argparse.ArgumentParser(description="Projectile pattern optimiser")
+    parser.add_argument("x0", type=float, help="Shooter X coordinate")
+    parser.add_argument("y0", type=float, help="Shooter Y coordinate")
+    parser.add_argument("x1", type=float, help="Target X coordinate")
+    parser.add_argument("y1", type=float, help="Target Y coordinate")
+    parser.add_argument("-a", "--shot-angle", type=float, default=90.0, help="Shot centreline angle (deg, CW from +X)")
+    parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100, help="Max projectiles to test")
+    parser.add_argument("-t", "--tolerance", type=float, default=0.01, help="Angular tolerance (radians)")
+    parser.add_argument(
+        "-p",
+        "--pattern-options",
+        type=_parse_pattern_list,
+        default=(5, 20, 30, 45, 90, 180),
+        help="Comma/space‑separated list of pattern degrees (default: 5 20 30 45 90 180)",
     )
-    parser.add_argument("x0", type=float)
-    parser.add_argument("y0", type=float)
-    parser.add_argument("x1", type=float)
-    parser.add_argument("y1", type=float)
-    parser.add_argument("-a", "--shot-angle", type=float, default=90.0)
-    parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100)
-    parser.add_argument("-t", "--tolerance", type=float, default=0.01)
-    parser.add_argument("--top", type=int, default=3)
-
+    parser.add_argument(
+        "--skip-speed-calc",
+        action="store_true",
+        help="Do not invoke external speed calculator",
+    )
+    parser.add_argument("--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
+    parser.add_argument("--background-image", type=str, default=None, help="Path to a background image to show behind the visualization (optional)")
+    parser.add_argument("--top", type=int, default=3, help="How many solutions to show per category")
     args = parser.parse_args()
-
     p1 = Point(args.x0, args.y0)
     p2 = Point(args.x1, args.y1)
     dist = _distance(p1, p2)
     angle_tol_deg = args.tolerance * 180.0 / math.pi
-
     eff = find_efficient_solutions(
         p1,
         p2,
         shot_angle=args.shot_angle,
+        pattern_options=args.pattern_options,
         max_N=args.max_N,
         tolerance_deg=angle_tol_deg,
     )
-
     tgt = _target_angle(p1, p2)
     print(f"Target angle  : {tgt:.6f}° (clockwise)")
     print(f"Distance      : {dist:.6f}")
     print(f"Abs tolerance : {angle_tol_deg:.6f}°\n")
-
     grouped = _group_by_pattern(eff)
-
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
         group = grouped[pd]
         most_accurate = sorted(group, key=lambda s: s.error_deg)[: args.top]
         fewest_projectiles = sorted(group, key=lambda s: s.total)[: args.top]
         print(f"\nPattern Degree: {pd}")
-
-        print("  Most Accurate (top 3):")
+        print(f"  Most Accurate (top {args.top}):")
         print("    L | R | N | Error (deg)")
         print("   --|---|----|------------")
         for sol in most_accurate:
-            print(
-                f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}"
-            )
-
-        print("  Fewest Projectiles (top 3):")
+            print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
+        print(f"  Fewest Projectiles (top {args.top}):")
         print("    L | R | N | Error (deg)")
         print("   --|---|----|------------")
         for sol in fewest_projectiles:
-            print(
-                f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}"
-            )
-
+            print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
     if eff:
         best = min(eff, key=lambda s: s.score())
         print("\nRecommended solution:")
@@ -251,31 +225,22 @@ def _cli() -> None:
             f"L: {best.left}, R: {best.right}, N: {best.total}, "
             f"Error: {best.error_deg:.6f}°"
         )
-
-    # ------------------------------------------------------------------
-    # Call companion \"speed_calc.exe\" sitting next to this executable
-    # ------------------------------------------------------------------
-    exe_dir = os.path.dirname(sys.executable)  # works for PyInstaller bundles
+        if args.visualize:
+            _visualize_solution(p1, p2, args.shot_angle, best, background_image=args.background_image)
+    if args.skip_speed_calc:
+        print("\nSpeed calculation skipped (--skip-speed-calc specified).")
+        return
+    exe_dir = os.path.dirname(sys.executable)
     speed_calc = os.path.join(exe_dir, "speed_calc.exe")
-
     print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
     try:
-        subprocess.run(
-            [
-                speed_calc,
-                f"{dist:.6f}",
-                "--tol",
-                f"{args.tolerance}",
-            ],
-            check=True,
-        )
+        subprocess.run([speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"], check=True)
     except FileNotFoundError:
         print("Error: speed_calc.exe not found in the same folder. Aborting.")
         sys.exit(1)
     except subprocess.CalledProcessError as exc:
         print(f"Error: speed solver exited with status {exc.returncode}.")
         sys.exit(exc.returncode)
-
 
 if __name__ == "__main__":
     _cli()
