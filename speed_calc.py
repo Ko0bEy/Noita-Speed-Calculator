@@ -51,7 +51,11 @@ def _split(n: int) -> Tuple[List[int], List[int]]:
     return list(range(1, 1 + mid)), list(range(1 + mid, 1 + n))
 
 def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed: float = BASE_SPEED, rel_tol: float = 5e-3, prod_cap: float = PROD_CAP, top_n: int = DEFAULT_TOP_N, uncapped_indices: Sequence[int] | None = None, x0_margin: int = 10) -> List[Solution]:
-    if len(coefs) < 2 or coefs[0] <= 1: raise ValueError
+    if len(coefs) < 1 or coefs[0] <= 1:
+        raise ValueError("At least 1 coefficients required, with coefs[0] > 1.")
+    if min(coefs) <= 0:
+        raise ValueError("All coefficients must be positive.")
+
     if min(coefs) <= 0: raise ValueError
     uncapped: Set[int] = {0} | set(map(int, uncapped_indices or []))
     if any(i < 0 or i >= len(coefs) for i in uncapped): raise ValueError
@@ -83,7 +87,11 @@ def find_sparse_solutions(coefs: Sequence[float], distance: float, *, base_speed
             abs_err = abs(dist_est - distance)
             vec = (x0,) + ha.vec + hb.vec
             sols.append(Solution(vec, rel_err, abs_err, ha.nz + hb.nz, ha.s + hb.s))
-    return sorted({s.vec: s for s in sols}.values(), key=lambda s: s.key())[: top_n]
+    sol_map = {}
+    for s in sols:
+        if s.vec not in sol_map or s.rel_err < sol_map[s.vec].rel_err:
+            sol_map[s.vec] = s
+    return sorted(sol_map.values(), key=lambda s: s.key())[: top_n]
 
 def _labels(coefs: Sequence[float]) -> List[str]:
     if list(coefs) == DEFAULT_COEFS:

@@ -1,0 +1,74 @@
+# CLI regression & feature test cases for angle_solver
+# Usage: bash angle_solver_cli_tests.sh
+
+# Minimal valid call (origin to origin, default options)
+angle_solver.exe 0 0 0 0
+
+# Basic: origin to a point
+angle_solver.exe 0 0 6400 16000
+
+# Custom shot angle
+angle_solver.exe 0 0 6400 16000 -a 120
+
+# Test max-N
+angle_solver.exe 0 0 1000 1000 -n 12
+
+# Tight tolerance (radians)
+angle_solver.exe 0 0 8000 12000 -t 0.001
+
+# Custom pattern degrees (space)
+angle_solver.exe 0 0 1000 500 -p 30 90
+
+# Custom pattern degrees (comma)
+angle_solver.exe 0 0 1000 500 -p 10,45,180
+
+# Top results increased
+angle_solver.exe 0 0 400 1200 --top 5
+
+# Skip speed_calc
+angle_solver.exe 0 0 6400 3200 --skip-speed-calc
+
+# Visualize solution
+angle_solver.exe 0 0 1000 1000 --visualize
+
+# All together: pattern, angle, N, tolerance, top
+angle_solver.exe 0 0 1000 500 -a 45 -p 20,90 -n 10 -t 0.01 --top 2
+
+# Forward custom coefs to speed_calc
+angle_solver.exe 0 0 5000 5000 -c 1.2 0.3 2.5
+
+# Forward uncapped indices
+angle_solver.exe 0 0 1000 3000 -u 1 2
+
+# Both coefs and uncapped
+angle_solver.exe 0 0 8000 4000 -c 1.2 1.75 0.75 -u 1
+
+# Edge: negative coordinates
+angle_solver.exe -1000 -1000 0 0
+
+# Very large coordinates
+angle_solver.exe 0 0 100000 200000
+
+# Very large coordinates and low tolerance
+angle_solver.exe 0 0 100000 200000 -v -t 0.0001
+
+# Many projectiles (max-n) extreme tol
+angle_solver.exe 0 0 3000 123456 -n 1000 -t 1e-5 -v -a 180
+
+# Unusual tolerance (high)
+angle_solver.exe 0 0 1000 2000 -t 0.5
+
+# Visualize, pattern, top, skip speed calc
+angle_solver.exe 0 0 1200 3400 -p 5,45 -n 12 --top 6 --visualize --skip-speed-calc
+
+# Invalid pattern degree (should error)
+angle_solver.exe 0 0 500 500 -p 0,190
+
+# Help message
+angle_solver.exe --help
+
+# only 1 coef
+angle_solver.exe 0 0 35840 0 -c 1.2 -t 0.1 -v
+
+# Manual complex example
+angle_solver 228 -80 6400 15000 -c 1.75 0.3 0.32 0.33 0.75 1.68 2.0 2.5 7.5 -a 45 -p 45 --visualize -t 0.001

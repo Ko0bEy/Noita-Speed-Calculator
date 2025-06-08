@@ -78,16 +78,16 @@ def find_efficient_solutions(
     shot_angle: float,
     pattern_options: Iterable[int] = (5, 20, 30, 45, 90, 180),
     max_N: int = 100,
-    tolerance_deg: float = 1e-3,
+    tolerance: float = 0.01,      # as fraction of distance
+    distance: float,              # required
 ) -> List[Solution]:
     tgt = _target_angle(p1, p2)
     keep: Dict[Tuple[int, ...], Solution] = {}
     for pd in pattern_options:
         for N in range(2, max_N + 1):
             sol = _best_L(pd, shot_angle, N, tgt)
-            if pd == 30 and not (sol.left > 12 or sol.right > 12):
-                continue
-            if sol.error_deg > tolerance_deg:
+            perp_error = math.sin(math.radians(sol.error_deg)) * distance
+            if perp_error > tolerance * distance:
                 continue
             key = _normalised_key(sol)
             prev = keep.get(key)
@@ -209,42 +209,70 @@ def _cli() -> None:
     parser.add_argument("y1", type=float, help="Target Y coordinate")
     parser.add_argument("-a", "--shot-angle", type=float, default=90.0, help="Shot centreline angle (deg, CW from +X)")
     parser.add_argument("-n", "--max-n", dest="max_N", type=int, default=100, help="Max projectiles to test")
-    parser.add_argument("-t", "--tolerance", type=float, default=0.01, help="Angular tolerance (radians)")
+    parser.add_argument(
+        "-t", "--tolerance",
+        type=float,
+        default=0.01,
+        help="Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1% of distance)"
+    )
     parser.add_argument("-c", "--coefs", type=float, nargs="+", help="Override speed multipliers for speed_calc")
     parser.add_argument("-u", "--uncapped", type=int, nargs="*",
                         help="Indices whose multipliers are uncapped for speed_calc")
 
     parser.add_argument(
-        "-p",
-        "--pattern-options",
-        type=_parse_pattern_list,
-        default=(5, 20, 30, 45, 90, 180),
-        help="Comma/space‑separated list of pattern degrees (default: 5 20 30 45 90 180)",
+        "-p", "--pattern-options",
+        type=str, nargs='+',
+        default=["5", "20", "30", "45", "90", "180"],
+        help="Space- or comma-separated list of pattern degrees (default: 5 20 30 45 90 180)",
     )
     parser.add_argument(
         "--skip-speed-calc",
         action="store_true",
         help="Do not invoke external speed calculator",
     )
-    parser.add_argument("--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
+    parser.add_argument("-v","--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
     parser.add_argument("--top", type=int, default=3, help="How many solutions to show per category")
     args = parser.parse_args()
+
+    if args.max_N < 2:
+        parser.error("--max-n must be at least 2")
+
+    pattern_degrees = []
+    for arg in args.pattern_options:
+        for val in arg.split(","):
+            val = val.strip()
+            if not val:
+                continue
+            try:
+                iv = int(val)
+            except ValueError:
+                parser.error(f"Invalid pattern degree: {val}")
+            if iv < 1 or iv > 180:
+                parser.error(f"Pattern degrees must be in range 1-180, got: {iv}")
+            pattern_degrees.append(iv)
+    args.pattern_options = pattern_degrees
+
+
     p1 = Point(args.x0, args.y0)
     p2 = Point(args.x1, args.y1)
     dist = _distance(p1, p2)
-    angle_tol_deg = args.tolerance * 180.0 / math.pi
+    if dist == 0:
+        print("Distance is zero; nothing to solve.")
+        return
+
     eff = find_efficient_solutions(
         p1,
         p2,
         shot_angle=args.shot_angle,
         pattern_options=args.pattern_options,
         max_N=args.max_N,
-        tolerance_deg=angle_tol_deg,
+        tolerance=args.tolerance,  # now as fraction
+        distance=dist,  # new arg
     )
     tgt = _target_angle(p1, p2)
     print(f"Target angle  : {tgt:.6f}° (clockwise)")
     print(f"Distance      : {dist:.6f}")
-    print(f"Abs tolerance : {angle_tol_deg:.6f}° ({math.sin(math.radians(angle_tol_deg)) * dist:.0f}px) \n")
+    print(f"Abs tolerance : {args.tolerance:.6f} × distance = {args.tolerance * dist:.0f}px\n")
     grouped = _group_by_pattern(eff)
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
@@ -253,13 +281,13 @@ def _cli() -> None:
         fewest_projectiles = sorted(group, key=lambda s: s.total)[: args.top]
         print(f"\nPattern Degree: {pd}")
         print(f"  Most Accurate (top {args.top}):")
-        print("    L | R | N | Error (deg)")
-        print("   --|---|----|------------")
+        print("    L | R  | N  | Error (deg)")
+        print("   ---|----|----|------------")
         for sol in most_accurate:
             print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
         print(f"  Fewest Projectiles (top {args.top}):")
-        print("    L | R | N | Error (deg)")
-        print("   --|---|----|------------")
+        print("    L | R  | N  | Error (deg)")
+        print("   ---|----|----|------------")
         for sol in fewest_projectiles:
             print(f"   {sol.left:>2} | {sol.right:>2} | {sol.total:>2} | {sol.error_deg:10.6f}")
     if eff:
@@ -274,27 +302,27 @@ def _cli() -> None:
             _visualize_solution(p1, p2, args.shot_angle, best)
     if args.skip_speed_calc:
         print("\nSpeed calculation skipped (--skip-speed-calc specified).")
-        return
-    exe_dir = os.path.dirname(sys.executable)
-    speed_calc = os.path.join(exe_dir, "speed_calc.exe")
-    print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
-    cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"]
-    if args.coefs:
-        cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
-    if args.uncapped:
-        cmd.extend(["--uncapped"] + [str(u) for u in args.uncapped])
-    print(f"\nRunning: {' '.join(os.path.basename(x) if i == 0 else x for i, x in enumerate(cmd))}")
-    try:
-        subprocess.run(cmd, check=True)
-    except FileNotFoundError:
-        print("Error: speed_calc.exe not found in the same folder. Aborting.")
-        sys.exit(1)
-    except subprocess.CalledProcessError as exc:
-        print(f"Error: speed solver exited with status {exc.returncode}.")
-        sys.exit(exc.returncode)
+    else:
+        exe_dir = os.path.dirname(sys.executable)
+        speed_calc = os.path.join(exe_dir, "speed_calc.exe")
+        print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
+        cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"]
+        if args.coefs:
+            cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
+        if args.uncapped:
+            cmd.extend(["--uncapped"] + [str(u) for u in args.uncapped])
+        print(f"\nRunning: {' '.join(os.path.basename(x) if i == 0 else x for i, x in enumerate(cmd))}")
+        try:
+            subprocess.run(cmd, check=True)
+        except FileNotFoundError:
+            print("Error: speed_calc.exe not found in the same folder. Aborting.")
+            sys.exit(1)
+        except subprocess.CalledProcessError as exc:
+            print(f"Error: speed solver exited with status {exc.returncode}.")
+            sys.exit(exc.returncode)
 
-
-    plt.show()
+    if args.visualize:
+        plt.show()
     input("Press Enter to exit...")
 
 if __name__ == "__main__":

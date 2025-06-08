@@ -13,20 +13,20 @@ angle_solver.exe x0 y0 x1 y1 [options]
 Also runs speed\_calc for the distance unless `--skip-speed-calc` is set.
 
 | Option/Flag               | Default             | Meaning                                                                                    |
-| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+|---------------------------| ------------------- | ------------------------------------------------------------------------------------------ |
 | `x0`                      | (required)          | Shooter X coordinate (float)                                                               |
 | `y0`                      | (required)          | Shooter Y coordinate (float)                                                               |
 | `x1`                      | (required)          | Target X coordinate (float)                                                                |
 | `y1`                      | (required)          | Target Y coordinate (float)                                                                |
 | `-a`, `--shot-angle`      | `90.0`              | Shot centreline angle in degrees (CW from +X axis)                                         |
 | `-n`, `--max-n`           | `100`               | Max projectiles to test                                                                    |
-| `-t`, `--tolerance`       | `0.01`              | Angular tolerance in radians (will be converted to degrees for internal calculation)       |
+| `-t`, `--tolerance`       | `0.01`              | Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1% of distance)|
 | `-p`, `--pattern-options` | `5 20 30 45 90 180` | Comma/space-separated list of pattern degrees to test (must be integers between 1 and 180) |
 | `-c`, `--coefs`           | (see speed\_calc)   | Override speed multipliers for speed\_calc (forwarded to speed\_calc)                      |
 | `-u`, `--uncapped`        |                     | Indices whose multipliers are uncapped (forwarded to speed\_calc)                          |
 | `--top`                   | `3`                 | How many solutions to show per pattern degree                                              |
 | `--skip-speed-calc`       |                     | Do not run speed\_calc for the distance                                                    |
-| `--visualize`             |                     | Show projectile pattern plot with matplotlib                                               |
+| `-v`, `--visualize`       |                     | Show projectile pattern plot with matplotlib                                               |
 | `-h`, `--help`            |                     | Show help message and exit                                                                 |
 
 ### Example
