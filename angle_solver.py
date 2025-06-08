@@ -202,7 +202,7 @@ def _parse_pattern_list(value: str) -> Tuple[int, ...]:
         raise argparse.ArgumentTypeError("pattern degrees must be integers") from exc
     if any(p <= 0 or p > 180 for p in parts):
         raise argparse.ArgumentTypeError("pattern degrees must be in the range 1‑180")
-    return tuple(parts)
+    return tuple(set(parts))
 
 def _cli() -> None:
     parser = argparse.ArgumentParser(description="Projectile pattern optimiser")
@@ -244,6 +244,9 @@ def _cli() -> None:
     )
     parser.add_argument("--top-n", type=int, default=25)
     args = parser.parse_args()
+
+    if not all(math.isfinite(coord) for coord in (args.x0, args.x1, args.y0, args.y1)):
+        parser.error("invalid coordinates.")
 
     if args.max_n < 2:
         parser.error("--max-n must be at least 2")

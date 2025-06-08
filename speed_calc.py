@@ -194,8 +194,8 @@ def _run_cli(argv: Optional[List[str]] = None) -> None:
     if any(c <= 0 for c in args.coefs):
         print(f"non-positive coefficient found.")
         return
-    if not all(0 <= u <= len(args.coefs) for u in args.uncapped):
-        print(f"invalid uncapped index, got: {args.u=}")
+    if not all(0 <= u < len(args.coefs) for u in args.uncapped):
+        print(f"invalid uncapped index, got: {args.uncapped=}")
     input_sort = [s.strip() for s in args.sort.split(",") if s.strip()]
     # infer rest from default ordering
     all_fields = [field.lstrip('-') for field in input_sort]
