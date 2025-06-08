@@ -20,7 +20,7 @@ Also runs speed\_calc for the distance unless `--skip-speed-calc` is set.
 | `y1`                      | (required)          | Target Y coordinate (float)                                                        |
 | `-a`, `--shot-angle`      | `90.0`              | Shot centreline angle in degrees (CW from +X axis)                                 |
 | `-n`, `--max-n`           | `100`               | Max projectiles to test                                                            |
-| `-t`, `--tolerance`       | `0.01`              | Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1%)    |
+| `-t`, `--tol`             | `0.01`              | Max allowed perpendicular error as a fraction of the distance (e.g., 0.01 = 1%)    |
 | `-p`, `--pattern-options` | `5 20 30 45 90 180` | Comma/space-separated list of pattern degrees to test (integers between 1 and 180) |
 | `--show-few`              | `3`                 | How many small solutions to show per pattern degree                                |
 | `--show-accurate`         | `3`                 | How many accurate solutions to show per pattern degree                             |

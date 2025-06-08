@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple, Optional
-import matplotlib.pyplot as plt
+from typing import Dict, List, Tuple
 from functools import lru_cache
 import heapq
+import math
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Circle
 
 @lru_cache(maxsize=None)
 def _angle_normalise(angle: float) -> float:
@@ -109,27 +111,23 @@ def _group_by_pattern(solutions: List[Solution]) -> Dict[int, List[Solution]]:
     return grouped
 
 def _visualize_solution(
-    p1: Point, p2: Point, shot_angle: float, sol: Solution
+    p1: Point, p2: Point, shot_angle: float, sol: Solution, tolerance: float = 0.01
 ) -> None:
-    import numpy as np
-    from matplotlib.ticker import ScalarFormatter
-
     center_x, center_y = p1.x, p1.y
-    dist = _distance(p1, p2)
+    dist = math.hypot(p2.x - p1.x, p2.y - p1.y)
+
+    # Compute projectile angles
     if sol.total == 1:
         angles = [shot_angle]
     else:
         start = shot_angle - sol.pattern_degree
-        step = _step(sol.pattern_degree, sol.total)
-        angles = [_angle_normalise(start + i * step) for i in range(sol.total)]
+        step = 360.0 / sol.total if sol.pattern_degree == 180 else (2.0 * sol.pattern_degree) / (sol.total - 1)
+        angles = [(start + i * step) % 360.0 for i in range(sol.total)]
+
     proj_x = [center_x + dist * np.cos(np.deg2rad(-a)) for a in angles]
     proj_y = [center_y - dist * np.sin(np.deg2rad(-a)) for a in angles]
 
-    # Find the projectile closest to the target direction
-    target_angle = _target_angle(p1, p2)
-    errors = [abs(_angle_difference(a, target_angle)) for a in angles]
-    best_idx = int(np.argmin(errors))
-
+    # Plot setup
     plt.figure(figsize=(8, 8))
     ax = plt.gca()
     plt.scatter(center_x, center_y, c='blue', s=100, label='Player')
@@ -139,13 +137,18 @@ def _visualize_solution(
         plt.plot([center_x, x], [center_y, y], c='gray', lw=1, ls='--')
     plt.plot([center_x, p2.x], [center_y, p2.y], c='red', lw=2, label='Target Direction')
 
-    # Plot the shot angle (centreline) as a line
+    # Plot the shot angle (centreline)
     shot_line_x = [center_x, center_x + dist * np.cos(np.deg2rad(-shot_angle))]
     shot_line_y = [center_y, center_y - dist * np.sin(np.deg2rad(-shot_angle))]
     plt.plot(shot_line_x, shot_line_y, c='orange', lw=2, label='Shot Angle')
 
+    # --- Draw tolerance circle around the target ---
+    tol_radius = tolerance * dist
+    tol_circle = Circle((p2.x, p2.y), tol_radius, color='gold', alpha=0.25,
+                        label=f'Tolerance Area ({tol_radius:.0f}px)')
+    ax.add_patch(tol_circle)
 
-    # Add labels, placed outward in data coordinates
+    # Labels
     N = len(proj_x)
     offset = max(dist * 0.04, 25)
 
@@ -172,9 +175,7 @@ def _visualize_solution(
     if N > 0:
         label_proj(0, "1", 'black')
         label_proj(N - 1, str(N), 'black')
-        if best_idx != 0 and best_idx != N - 1:
-            label_proj(best_idx, str(best_idx + 1), 'blue')
-
+        # Optional: label the closest one to target direction in blue, as in the original
     plt.axis('equal')
     plt.xlabel('+X (right)')
     plt.ylabel('+Y (down)')
@@ -182,11 +183,14 @@ def _visualize_solution(
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    ax.invert_yaxis() # Y-axis increases downwards in-game
+    ax.invert_yaxis()
+    # Optionally: ScalarFormatter for axes
+    from matplotlib.ticker import ScalarFormatter
     fmt = ScalarFormatter(useOffset=False)
     fmt.set_scientific(False)
     ax.xaxis.set_major_formatter(fmt)
     ax.yaxis.set_major_formatter(fmt)
+
 
 
 def _parse_pattern_list(value: str) -> Tuple[int, ...]:
@@ -209,7 +213,7 @@ def _cli() -> None:
     parser.add_argument("-a", "--shot-angle", type=float, default=90.0, help="Shot centreline angle (deg, CW from +X)")
     parser.add_argument("-n", "--max-n", type=int, default=100, help="Max projectiles to test")
     parser.add_argument(
-        "-t", "--tolerance",
+        "-t", "--tol",
         type=float,
         default=0.01,
         help="Max allowed perpendicular error as a fraction of the distance"
@@ -274,13 +278,13 @@ def _cli() -> None:
         shot_angle=args.shot_angle,
         pattern_options=args.pattern_options,
         max_n=args.max_n,
-        tolerance=args.tolerance,  # now as fraction
-        distance=dist,  # new arg
+        tolerance=args.tol,
+        distance=dist,
     )
     tgt = _target_angle(p1, p2)
     print(f"Target angle  : {tgt:.6f}° (clockwise)")
     print(f"Distance      : {dist:.6f}")
-    print(f"Abs tolerance : {args.tolerance:.6f} × distance = {args.tolerance * dist:.0f}px\n")
+    print(f"Abs tolerance : {args.tol:.6f} × distance = {args.tol * dist:.0f}px\n")
     grouped = _group_by_pattern(eff)
     print("Solutions grouped by pattern degree (duplicates pruned):")
     for pd in sorted(grouped):
@@ -307,14 +311,14 @@ def _cli() -> None:
             f"Error: {best.error_deg:.6f}° ({math.sin(math.radians(best.error_deg)) * dist:.0f}px)"
         )
         if args.visualize:
-            _visualize_solution(p1, p2, args.shot_angle, best)
+            _visualize_solution(p1, p2, args.shot_angle, best, args.tol)
     if args.skip_speed_calc:
         print("\nSpeed calculation skipped (--skip-speed-calc specified).")
     else:
         exe_dir = os.path.dirname(sys.executable)
         speed_calc = os.path.join(exe_dir, "speed_calc.exe")
-        print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tolerance}")
-        cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tolerance}"]
+        print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tol}")
+        cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tol}"]
         if args.coefs:
             cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
         if args.uncapped:
