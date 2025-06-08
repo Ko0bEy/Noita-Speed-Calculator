@@ -320,7 +320,6 @@ def _cli() -> None:
     else:
         exe_dir = os.path.dirname(sys.executable)
         speed_calc = os.path.join(exe_dir, "speed_calc.exe")
-        print(f"\nRunning: {os.path.basename(speed_calc)} {dist:.6f} --tol {args.tol}")
         cmd = [speed_calc, f"{dist:.6f}", "--tol", f"{args.tol}"]
         if args.coefs:
             cmd.extend(["--coefs"] + [str(x) for x in args.coefs])

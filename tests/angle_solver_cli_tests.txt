@@ -56,7 +56,7 @@ angle_solver.exe 0 0 100000 200000 -v -t 0.0001
 angle_solver.exe 0 0 3000 123456 -n 1000 -t 1e-5 -v -a 180
 
 # Unusual tolerance (high)
-angle_solver.exe 0 0 1000 2000 -t 0.5
+angle_solver.exe 0 0 1000 2000 -t 0.2
 
 # Visualize, pattern, top, skip speed calc
 angle_solver.exe 0 0 1200 3400 -p 5,45 -n 12 --top 6 --visualize --skip-speed-calc
