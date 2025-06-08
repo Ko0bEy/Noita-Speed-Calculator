@@ -136,6 +136,12 @@ def _visualize_solution(
         plt.plot([center_x, x], [center_y, y], c='gray', lw=1, ls='--')
     plt.plot([center_x, p2.x], [center_y, p2.y], c='red', lw=2, label='Target Direction')
 
+    # Plot the shot angle (centreline) as a line
+    shot_line_x = [center_x, center_x + dist * np.cos(np.deg2rad(-shot_angle))]
+    shot_line_y = [center_y, center_y - dist * np.sin(np.deg2rad(-shot_angle))]
+    plt.plot(shot_line_x, shot_line_y, c='orange', lw=2, label='Shot Angle')
+
+
     # Add labels, placed outward in data coordinates
     N = len(proj_x)
     offset = max(dist * 0.04, 25)
