@@ -186,11 +186,13 @@ def _labels(coefs: Sequence[float]) -> List[str]:
 def _col_w(sols: List[Solution], labels: List[str]) -> int:
     if not sols:
         return 4
-    return max(4, len(str(max(max(s.vec) for s in sols))), max(len(l) for l in labels))
+    return max(
+        4, len(str(max(max(s.vec) for s in sols))), max(len(label) for label in labels)
+    )
 
 
 def _header(labels: List[str], w: int) -> str:
-    cols = " ".join(l.rjust(w) for l in labels)
+    cols = " ".join(label.rjust(w) for label in labels)
     return f"{cols} | multiplier |   distance  |   error | rel_error"
 
 
@@ -230,7 +232,7 @@ def _run_cli(argv: Optional[List[str]] = None) -> None:
         print(f"invalid distance: {args.distance}")
         return
     if any(c <= 0 for c in args.coefs):
-        print(f"non-positive coefficient found.")
+        print("non-positive coefficient found.")
         return
     if not all(0 <= u < len(args.coefs) for u in args.uncapped):
         print(f"invalid uncapped index, got: {args.uncapped=}")

@@ -310,7 +310,8 @@ def _cli() -> None:
         "--sort",
         type=str,
         default=None,
-        help="Comma-separated sort priorities to pass to speed_calc (e.g. rel_err,nz,sum). Supported: nz, sum, rel_err, max_exp.",
+        help="Comma-separated sort priorities to pass to speed_calc "
+        "(e.g. rel_err,nz,sum). Supported: nz, sum, rel_err, max_exp.",
     )
     parser.add_argument("--top-n", type=int, default=25)
     args = parser.parse_args()
