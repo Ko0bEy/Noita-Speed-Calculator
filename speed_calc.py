@@ -42,14 +42,10 @@ class Solution:
     def key(self, sort_priority: Sequence[str] = DEFAULT_SORTING_PRIORITY) -> Tuple[Any, ...]:
         key_tuple: List[Any] = []
         for k in sort_priority:
-            reverse = False
-            if k.startswith('-'):
-                reverse = True
-                k = k[1:]
             val = getattr(self, k)
             if k == 'rel_err':
                 val = abs(val)
-            key_tuple.append(-val if reverse else val)
+            key_tuple.append(val)
         return tuple(key_tuple)
 
 def _upper_bounds(

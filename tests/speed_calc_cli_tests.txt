@@ -1,0 +1,27 @@
+# test_speed_calc_commands.sh
+# Usage: bash test_speed_calc_commands.sh
+# Or copy-paste commands individually in your terminal.
+
+# 1. Basic usage with default options
+speed_calc.exe 4000
+
+# 2. Custom coefs, print more solutions, tighter tolerance
+speed_calc.exe 2500 -c 1.2 0.3 0.33 2.0 -n 10 -t 1e-3
+
+# 3. Use uncapped indices
+speed_calc.exe 5000 -u 1 4 5
+
+# 4. Sort by max_exp (largest single multiplier exponent first)
+speed_calc.exe 2000 --sort -max_exp
+
+# 5. Sort by sum ascending, then rel_err ascending (partial override)
+speed_calc.exe 3000 --sort sum
+
+# 6. Custom multipliers, custom sort, small top-n
+speed_calc.exe 1000 -c 1.5 2.5 4.0 --sort -sum,max_exp -n 5
+
+# 7. Invalid input: negative distance (should show error)
+speed_calc.exe -100
+
+# 8. Invalid input: coefs with non-positive number (should show error)
+speed_calc.exe 1500 -c 1.2 0 2.0
