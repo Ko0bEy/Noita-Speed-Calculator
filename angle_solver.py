@@ -76,15 +76,15 @@ def find_efficient_solutions(
     p2: Point,
     *,
     shot_angle: float,
-    pattern_options: Iterable[int] = (5, 20, 30, 45, 90, 180),
-    max_N: int = 100,
-    tolerance: float = 0.01,      # as fraction of distance
-    distance: float,              # required
+    pattern_options: Tuple[int, ...] = (5, 20, 30, 45, 90, 180),
+    max_n: int = 100,
+    tolerance: float = 0.01,
+    distance: float,
 ) -> List[Solution]:
     tgt = _target_angle(p1, p2)
     keep: Dict[Tuple[int, ...], Solution] = {}
     for pd in pattern_options:
-        for N in range(2, max_N + 1):
+        for N in range(2, max_n + 1):
             sol = _best_L(pd, shot_angle, N, tgt)
             perp_error = math.sin(math.radians(sol.error_deg)) * distance
             if perp_error > tolerance * distance:
@@ -232,6 +232,12 @@ def _cli() -> None:
     )
     parser.add_argument("-v","--visualize", action="store_true", help="Show matplotlib visualization of the recommended solution")
     parser.add_argument("--top", type=int, default=3, help="How many solutions to show per category")
+    parser.add_argument(
+        "--sort-priority",
+        type=str,
+        default=None,
+        help="Comma-separated sort priorities to pass to speed_calc (e.g. rel_err,nz,sum). Supported: nz, sum, rel_err, max_exp."
+    )
     args = parser.parse_args()
 
     if args.max_N < 2:
@@ -250,6 +256,7 @@ def _cli() -> None:
             if iv < 1 or iv > 180:
                 parser.error(f"Pattern degrees must be in range 1-180, got: {iv}")
             pattern_degrees.append(iv)
+    pattern_degrees = tuple(pattern_degrees)
     args.pattern_options = pattern_degrees
 
 
@@ -265,7 +272,7 @@ def _cli() -> None:
         p2,
         shot_angle=args.shot_angle,
         pattern_options=args.pattern_options,
-        max_N=args.max_N,
+        max_n=args.max_N,
         tolerance=args.tolerance,  # now as fraction
         distance=dist,  # new arg
     )
@@ -311,6 +318,8 @@ def _cli() -> None:
             cmd.extend(["--coefs"] + [str(x) for x in args.coefs])
         if args.uncapped:
             cmd.extend(["--uncapped"] + [str(u) for u in args.uncapped])
+        if args.sort_priority:
+            cmd.extend(["--sort", args.sort_priority])
         print(f"\nRunning: {' '.join(os.path.basename(x) if i == 0 else x for i, x in enumerate(cmd))}")
         try:
             subprocess.run(cmd, check=True)
@@ -323,7 +332,6 @@ def _cli() -> None:
 
     if args.visualize:
         plt.show()
-    input("Press Enter to exit...")
 
 if __name__ == "__main__":
     _cli()
