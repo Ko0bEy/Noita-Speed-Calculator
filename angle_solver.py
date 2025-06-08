@@ -204,7 +204,7 @@ def _visualize_solution(
     if N > 0:
         label_proj(0, "1", "black")
         label_proj(N - 1, str(N), "black")
-        (sol.left, str(sol.left + 1), "blue")
+        label_proj(sol.left, str(sol.left + 1), "blue")
 
     plt.axis("equal")
     plt.xlabel("+X (right)")
