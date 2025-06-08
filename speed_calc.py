@@ -183,6 +183,12 @@ def _parser() -> argparse.ArgumentParser:
     return p
 def _run_cli(argv: Optional[List[str]] = None) -> None:
     args = _parser().parse_args(argv)
+    if args.distance <= 0:
+        print(f"invalid distance: {args.distance}")
+        return
+    if any(c <= 0 for c in args.coefs):
+        print(f"non-positive coefficient found.")
+        return
     input_sort = [s.strip() for s in args.sort.split(",") if s.strip()]
     # infer rest from default ordering
     all_fields = [field.lstrip('-') for field in input_sort]

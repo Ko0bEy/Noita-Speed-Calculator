@@ -12,13 +12,13 @@ speed_calc.exe 2500 -c 1.2 0.3 0.33 2.0 -n 10 -t 1e-3
 speed_calc.exe 5000 -u 1 4 5
 
 # 4. Sort by max_exp (largest single multiplier exponent first)
-speed_calc.exe 2000 --sort -max_exp
+speed_calc.exe 2000 --sort max_exp
 
 # 5. Sort by sum ascending, then rel_err ascending (partial override)
 speed_calc.exe 3000 --sort sum
 
 # 6. Custom multipliers, custom sort, small top-n
-speed_calc.exe 1000 -c 1.5 2.5 4.0 --sort -sum,max_exp -n 5
+speed_calc.exe 10000 -c 1.2 0.5 2.5 --sort sum,max_exp -n 5
 
 # 7. Invalid input: negative distance (should show error)
 speed_calc.exe -100
