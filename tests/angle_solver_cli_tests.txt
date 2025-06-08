@@ -72,3 +72,32 @@ angle_solver.exe 0 0 35840 0 -c 1.2 -t 0.1 -v
 
 # Manual complex example
 angle_solver 228 -80 6400 15000 -c 1.75 0.3 0.32 0.33 0.75 1.68 2.0 2.5 7.5 -a 45 -p 45 --visualize -t 0.001
+
+25. Invalid: all coordinates NaN
+
+angle_solver.exe nan nan nan nan
+
+26. Very small distance, tight tolerance
+
+angle_solver.exe 0 0 1 1 -t 1e-5
+
+27. Only one pattern degree (edge-case grouping)
+
+angle_solver.exe 0 0 1000 1000 -p 45
+
+28. Forward all speed_calc options at once
+
+angle_solver.exe 0 0 6400 8000 -c 1.2 1.7 0.8 -u 1 2 --sort rel_err,max_exp -t 0.003 --top-n 12
+
+29. Negative max-n (should error)
+
+angle_solver.exe 0 0 100 100 -n -5
+
+30. Pattern options with duplicate values (should dedupe or show both)
+
+angle_solver.exe 0 0 1000 2000 -p 30 30 45
+
+31. Visualize + skip-speed-calc + tight tolerance
+
+angle_solver.exe 0 0 800 800 --visualize --skip-speed-calc -t 0.0001
+

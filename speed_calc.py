@@ -6,7 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Sequence, Tuple, Set, Optional, Dict, Any
 from functools import lru_cache
-
+import matplotlib
+matplotlib.use('TkAgg')
 DEFAULT_COEFS: List[float] = [1.2, 0.3, 0.32, 0.33, 0.75, 1.68, 2.0, 2.5, 7.5]
 BASE_SPEED: float = 7.92
 PROD_CAP: float = 20.0
@@ -193,6 +194,8 @@ def _run_cli(argv: Optional[List[str]] = None) -> None:
     if any(c <= 0 for c in args.coefs):
         print(f"non-positive coefficient found.")
         return
+    if not all(0 <= u <= len(args.coefs) for u in args.uncapped):
+        print(f"invalid uncapped index, got: {args.u=}")
     input_sort = [s.strip() for s in args.sort.split(",") if s.strip()]
     # infer rest from default ordering
     all_fields = [field.lstrip('-') for field in input_sort]
